@@ -487,9 +487,323 @@ Quit anyway? (y or n) y
  $ 
 </pre>
 
-<p> 「プログラムが実行中だが終了してよいか？」と聞かれるが、今は重要なプログラムを実行しているわけではないので、y でいい。</p>
+<p>
+  「プログラムが実行中だが終了してよいか？」と聞かれるが、今は重要なプログラムを実行しているわけではないので、y でいい。
+  ここで add 命令の次に書いた ret は何？と、疑問に思っている方もいるかもしれない。それについては、あとのOSインターフェースのところで解説する。
+</p>
 
-<p> </p>
+<p>
+  いくつか解説をはさんでしまったので、ここまでの流れをざっともう一度流しておこう
+</p>
+
+<ul>
+  <li> start : プログラムを開始してmain関数の先頭で処理を止める </li>
+  <li> info registers : レジスタの値を表示 </li>
+  <li> disassemble : 現在実行中の関数に含まれる命令を表示 </li>
+  <li> stepi : 一命令実行する </li>
+  <li> quit : gdb を終了 </li>
+</ul>
+
+
+<pre>
+$ gdb a.out
+GNU gdb (Ubuntu 7.11.1-0ubuntu1~16.5) 7.11.1
+Copyright (C) 2016 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type &quot;show copying&quot;
+and &quot;show warranty&quot; for details.
+This GDB was configured as &quot;x86_64-linux-gnu&quot;.
+Type &quot;show configuration&quot; for configuration details.
+For bug reporting instructions, please see:
+&lt;http://www.gnu.org/software/gdb/bugs/&gt;.
+Find the GDB manual and other documentation resources online at:
+&lt;http://www.gnu.org/software/gdb/documentation/&gt;.
+For help, type &quot;help&quot;.
+Type &quot;apropos word&quot; to search for commands related to &quot;word&quot;...
+Reading symbols from a.out...(no debugging symbols found)...done.
+(gdb) start
+Temporary breakpoint 1 at 0x4004d6
+Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+
+Temporary breakpoint 1, 0x00000000004004d6 in main ()
+(gdb) disassemble
+Dump of assembler code for function main:
+=&gt; 0x00000000004004d6 &lt;+0&gt;:	add    $0x1,%rax
+   0x00000000004004da &lt;+4&gt;:	retq   
+   0x00000000004004db &lt;+5&gt;:	nopl   0x0(%rax,%rax,1)
+End of assembler dump.
+(gdb) info registers
+rax            0x4004d6	4195542
+rbx            0x0	0
+rcx            0x0	0
+rdx            0x7ffffffee518	140737488282904
+rsi            0x7ffffffee508	140737488282888
+rdi            0x1	1
+rbp            0x4004e0	0x4004e0 &lt;__libc_csu_init&gt;
+rsp            0x7ffffffee428	0x7ffffffee428
+r8             0x400550	4195664
+r9             0x7fffff410ab0	140737475840688
+r10            0x846	2118
+r11            0x7fffff050740	140737471907648
+r12            0x4003e0	4195296
+r13            0x7ffffffee500	140737488282880
+r14            0x0	0
+r15            0x0	0
+rip            0x4004d6	0x4004d6 &lt;main&gt;
+eflags         0x246	[ PF ZF IF ]
+cs             0x33	51
+ss             0x2b	43
+ds             0x0	0
+es             0x0	0
+fs             0x0	0
+gs             0x0	0
+(gdb) stepi
+0x00000000004004da in main ()
+(gdb) info registers
+rax            0x4004d7	4195543
+rbx            0x0	0
+rcx            0x0	0
+rdx            0x7ffffffee518	140737488282904
+rsi            0x7ffffffee508	140737488282888
+rdi            0x1	1
+rbp            0x4004e0	0x4004e0 &lt;__libc_csu_init&gt;
+rsp            0x7ffffffee428	0x7ffffffee428
+r8             0x400550	4195664
+r9             0x7fffff410ab0	140737475840688
+r10            0x846	2118
+r11            0x7fffff050740	140737471907648
+r12            0x4003e0	4195296
+r13            0x7ffffffee500	140737488282880
+r14            0x0	0
+r15            0x0	0
+rip            0x4004da	0x4004da &lt;main+4&gt;
+eflags         0x206	[ PF IF ]
+cs             0x33	51
+ss             0x2b	43
+ds             0x0	0
+es             0x0	0
+fs             0x0	0
+gs             0x0	0
+(gdb) quit
+A debugging session is active.
+
+	Inferior 1 [process 1770] will be killed.
+
+Quit anyway? (y or n) y
+</pre>
+
+<p> もうひとつ、よく使う gdb のコマンドを紹介しておこう。print コマンドだ。 </p>
+
+<pre>
+(gdb) start
+Temporary breakpoint 1 at 0x4004d6
+Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+
+Temporary breakpoint 1, 0x00000000004004d6 in main ()
+(gdb) print $rax
+$1 = 4195542
+(gdb) print /x $rax
+$2 = 0x4004d6
+(gdb) print 45 * 4
+$3 = 180
+(gdb) print /x 255
+$5 = 0xff
+(gdb) print $r8
+$7 = 4195664
+(gdb) print $r9
+$8 = 140737475840688
+(gdb) print $ds
+$9 = 0
+(gdb) print $cs
+$10 = 51
+(gdb) print $rax + 512
+$11 = 4196054
+</pre>
+
+<p>
+  print コマンドは、コマンドに与えた式の値を表示してくれる。"/x" を付けると、値を16進で表示だ。
+  print $rax + 512 のように、頭に'$' を付けて、レジスタ名を書くと、式の中にレジスタの値を入れることができる。
+</p>
+
+
+<p> さて、それでは gdb で命令を実行して、結果を表示する方法は解説したので、いくつか基本的な命令を説明しておこう。 </p>
+
+<p> レジスタに値を設定する、mov 命令。 </p>
+
+<p> <a href="1/mov.s"> 1/mov.s </a> </p>
+
+<pre>
+	.globl	main
+main:
+	mov $1, %rax
+        ret
+
+</pre>
+
+<pre>
+(gdb) start
+Temporary breakpoint 1 at 0x4004d6
+Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+
+Temporary breakpoint 1, 0x00000000004004d6 in main ()
+(gdb) disassemble
+Dump of assembler code for function main:
+=&gt; 0x00000000004004d6 &lt;+0&gt;:	mov    $0x1,%rax
+   0x00000000004004dd &lt;+7&gt;:	retq   
+   0x00000000004004de &lt;+8&gt;:	xchg   %ax,%ax
+End of assembler dump.
+(gdb) p $rax
+$1 = 4195542
+(gdb) stepi
+0x00000000004004dd in main ()
+(gdb) disassemble
+Dump of assembler code for function main:
+   0x00000000004004d6 &lt;+0&gt;:	mov    $0x1,%rax
+=&gt; 0x00000000004004dd &lt;+7&gt;:	retq   
+   0x00000000004004de &lt;+8&gt;:	xchg   %ax,%ax
+End of assembler dump.
+(gdb) p $rax
+$2 = 1
+</pre>
+
+<p> rax の値が 1 になる。 </p>
+
+<p>
+  p コマンドは、print の略で、gdb では、よく使うコマンドは、省略できるという機能がある。 printはよく使うので、p 一文字で実行できる。
+  同じように、info registers も、"i r" で実行可能だ。慣れてくると使ってみるのもよいかもしれない。
+</p>
+
+<p> 多くの演算は、レジスタ間で演算することが可能だ。 </p>
+
+<p> <a href="1/add2.s">1/add2.s</a> </p>
+
+<pre>
+	.globl	main
+main:
+	mov $1, %rax
+	mov $2, %r8
+	add %r8, %rax
+	ret
+</pre>
+
+<p>とすると、r8 レジスタの値を、raxレジスタに加算できる。 </p>
+
+<pre> 
+(gdb) start
+Temporary breakpoint 1 at 0x4004d6
+Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+
+Temporary breakpoint 1, 0x00000000004004d6 in main ()
+(gdb) stepi
+0x00000000004004dd in main ()
+(gdb) stepi
+0x00000000004004e4 in main ()
+(gdb) p $rax
+$1 = 1
+(gdb) p $r8
+$2 = 2
+(gdb) disassemble
+Dump of assembler code for function main:
+   0x00000000004004d6 &lt;+0&gt;:	mov    $0x1,%rax
+   0x00000000004004dd &lt;+7&gt;:	mov    $0x2,%r8
+=&gt; 0x00000000004004e4 &lt;+14&gt;:	add    %r8,%rax
+   0x00000000004004e7 &lt;+17&gt;:	retq   
+   0x00000000004004e8 &lt;+18&gt;:	nopl   0x0(%rax,%rax,1)
+End of assembler dump.
+(gdb) stepi
+0x00000000004004e7 in main ()
+(gdb) p $rax
+$3 = 3
+(gdb) p $r8
+$4 = 2
+(gdb) 
+</pre>
+
+<p> rax レジスタの値が、1 + 2 = 3 になっていることを確認しよう。 </p>
+
+<p> subで減算、imul で乗算、and,or,xor で bitwise and, or, xor だ。</p>
+
+<p> <a href="1/sub.s">1/sub.s</a> </p>
+
+<pre>
+	.globl	main
+main:
+	mov $1, %rax
+	mov $2, %r8
+	sub %r8, %rax
+
+	mov $3, %rax
+	mov $4, %r8
+	imul %r8, %rax
+
+	mov $0xaa, %rax
+	mov $0x0f, %r8
+	and %r8, %rax
+
+	mov $0xaa, %rax
+	mov $0x0f, %r8
+	or %r8, %rax
+
+	mov $0xaa, %rax
+	mov $0x0f, %r8
+	xor %r8, %rax
+
+	ret
+</pre>
+
+
+<pre>
+Temporary breakpoint 2, 0x00000000004004d6 in main ()
+(gdb) stepi 3
+0x00000000004004e7 in main ()
+(gdb) p $rax
+$5 = -1
+(gdb) stepi 3
+0x00000000004004f9 in main ()
+(gdb) p $rax
+$6 = 12
+(gdb) stepi 3
+0x000000000040050a in main ()
+(gdb) p /x $rax
+$7 = 0xa
+(gdb) stepi 3
+0x000000000040051b in main ()
+(gdb) p /x $rax
+$8 = 0xaf
+(gdb) stepi 3
+0x000000000040052c in main ()
+(gdb) p /x $rax
+$11 = 0xa5
+(gdb) 
+</pre>
+
+<p> gdb の stepi コマンドは、引数に数字を渡すと、その回数だけ繰り返してくれる。stepi 3 の意味は、命令を3個実行だ。 </p>
+
+
+<h3> ロード、ストア命令 </h3>
+
+<p>
+  
+</p>
+
+
+<h3> プログラムカウンタと分岐 </h3>
+
+<p>
+  レジスタについて解説したところで、
+</p>
+
+<ul>
+  <li> プログラムカウンタ : 現在実行している命令のアドレスを保持する。これもx86_64では64bit。値を操作するのに特殊な命令が必要 </li>
+</ul>
+
+<p> と、いうのを書いていた。</p>
+
+<p>
+  現代の一般的なCPUでは、プログラムは、データと本質的な違いはなく、メモリ上に配置されたデータと同じように、メモリ上の"どこか"に配置されたバイト列である。
+  プログラムカウンタは、この"どこか"を指すレジスタだ。
+</p>
 
 
  <h2> C言語とアセンブリ </h2>
@@ -523,15 +837,18 @@ Quit anyway? (y or n) y
   <p>
     C言語の言語仕様には、明示的にリンクについて書かれてはいないものの、
     extern 指定子など、言語仕様の一部に、リンクの処理を無視して説明できない仕様を含んでいるのは間違いない。
-  </p>
-  <p>
-    リンカに対する理解なくして、C言語の理解はありえないのだ！
+    リンクについて知れば、C言語への理解も、もう一歩深まるだろう。
   </p>
 
   <h3> ELF </h3>
   <h3> ldscript </h3>
   <h3> リロケーション </h3>
   <h3> ローダ </h3>
+
+ <h2> OS呼び出し </h2>
+
+ <h2> x86_64 機械語入門 </h2>
+
  <h2> おまけ : printf </h2>
  <h2> おまけ : shellcode </h2>
 
@@ -582,9 +899,28 @@ Quit anyway? (y or n) y
 
 <h1> ベアメタルプログラミング </h1>
 
+<p>
+  低レベルプログラミングに興味がある人なら、OS自作や、ベアメタルプログラミングに手を出したことがある人も多いのではないだろうか。
+</p>
+
+<p>
+  しかし、現在のPCのマザーボードには、昔のOSに匹敵するような巨大なソフトウェアが搭載されているのが普通で、
+  もっと小さなハードウェアで実行されるベアメタルプログラムと比較すると、まだ厚いレイヤーの上で動くソフトウェアしか作れないという問題がある。
+
+  PCベアメタルプログラミングに手を出したことがある人も、BIOSコールを使って、HDDにアクセスしたり、
+  UEFIサービスを使って、ファイルシステムにアクセスするとき、「これは何か求めていたものとは違うのではないか？」と思いながらプログラムを書いていたはずだ。
+</p>
+
+<p>
+  ここでは、PCよりもレイヤーの薄いZyboを使って、ベアメタルプログラミングにチャレンジしていこうと思う。
+  (ちなみにRaspberry Piも、大きめのファームウェアを持っていて、ARMがブートするのは、色々な初期化が終わったあとだ)
+</p>
+
   <h2> ブートとは </h2>
 
   <h2> SPI flash </h2>
+
+  <h2> クロック </h2>
 
   <h2> DRAMコントローラ </h2>
 
@@ -605,26 +941,54 @@ Quit anyway? (y or n) y
 <h1> DMA </h1>
 
 <h1> キャッシュ </h1>
+ <h2> メモリ </h2>
+
+<h1> 高速デバイスの世界 </h1>
+
+<p>
+  かつて、コンピュータというのは、高速なCPUと、中速なメモリ、低速なI/O から構成されていた。
+</p>
+
+<p>
+  しかし、近年は、CPUの速度向上がかなり停滞してきているのに対し、
+  周辺I/Oデバイスの速度向上は止まるどころか、高速なデバイスが次々に投入され、
+  その性能は、CPUに迫るか、それを大きく上まわるものも登場してきた。
+</p>
+
+<p>
+  遅いと言われていたストレージは、家庭用の物でもusec単位で処理が実行されており、
+  100GbpsイーサやInfinibandの帯域はCPUのmemsetに迫るぐらいになり、
+  GPUの演算スループット性能およびメモリ帯域はCPUの何倍も大きくなってきている。
+</p>
+
+<p>
+  ここでは、現代の高速デバイスが、どのように接続され、ユーザからどのように使うのかといった点について解説していきたいと思う。
+</p>
+
+<h2> PCI Express </h2>
+
+<h2> イーサネット </h2>
+
+<h2> Infiniband </h2>
+
+<h2> USB </h2>
+
+<h2> GPU </h2>
+
+<h2> ストレージ </h2>
+
+ <h3> SATA, AHCI </h3>
+ <h3> NVMe </h3>
+
+
 
 <h1> ネットワーク </h1>
 
   <h2> TCP/IP </h2>
-  <h2> イーサネット </h2>
-  <h2> Infiniband </h2>
+
+<h1> ファイルシステム </h1>
 
 <h1> i2c </h1>
-
-<h1> PCI Express </h1>
-
-<h1> GPU </h1>
-
-<h1> USB </h1>
-
-<h1> ストレージ </h1>
-
- <h2> SATA </h2>
- <h2> NVMe </h2>
- <h2> ファイルシステム </h2>
 
 <h1> FPGA </h1>
 
