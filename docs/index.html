@@ -1,5 +1,6 @@
 <html>
 <head>
+  <meta charset="utf-8"/>
   <title>実践的低レベルプログラミング</title>
 </head>
 <style>
@@ -781,11 +782,170 @@ $11 = 0xa5
 <p> gdb の stepi コマンドは、引数に数字を渡すと、その回数だけ繰り返してくれる。stepi 3 の意味は、命令を3個実行だ。 </p>
 
 
-<h3> ロード、ストア命令 </h3>
+<h3> メインメモリ、ロード、ストア命令 </h3>
 
 <p>
-  
+  x86_64 では、さきほど見たように、汎用レジスタが16個あった。汎用レジスタは一個8byteあるので、16個あれば、128byteのデータを保持できることになる。
+  128byte というのは、本当に小さなサイズだ。画像で言うと、8x8ピクセルの画像も保持できないし、今書いてるこの文章も扱えないほど、ほんとうに小さなサイズだ。
+
+  たった128byteのデータでできることなんてほとんど何もない。月へ行くことだって難しいだろう。
 </p>
+
+<p>
+  今のコンピュータのように、大きな写真や、動画を見たり編集したりするには、128byteよりも、もっともっと大きなデータを扱える必要がある。
+  現代の一般的なコンピュータは、この大きなデータを保持するために、「メインメモリ」、日本の情報の教科書的に言うと、「主記憶装置」と呼ばれるものが付いている。
+</p>
+
+<p>
+  メインメモリは、データを保存するためのデバイスで、保存したデータを<em>アドレス</em> と呼ばれる整数値で指定し、次のふたつの操作をすることができる。
+</p>
+
+<ul>
+  <li> ストア (保存、書き込み、store、writeなどとも言う) : <em>アドレス</em> で指定した箇所にバイトデータを保存する </li>
+  <li> ロード (読み込み、load, readなどとも言う) : <em>アドレス</em> で指定した箇所に保存されているバイトデータを取り出す </li>
+</ul>
+
+<p> (TODO:図を入れたい) </p>
+
+<p> 例えば、次のような操作が可能だ </p>
+
+<ol>
+  <li> アドレス 16 番に、データ 0xcc をストア </li>
+  <li> アドレス 20 番に、データ 0x88 をストア </li>
+  <li> アドレス 16 番からロード、 データ 0xcc を取り出すことができる </li>
+  <li> アドレス 20 番からロード、 データ 0x88 を取り出すことができる </li>
+</ol>
+
+<p> 各アドレスによって識別できるデータは、完全に独立していて、 </p>
+
+<ol>
+  <li> アドレス 16 番に、データ 0xcc をストア </li>
+  <li> アドレス 20 番に、データ 0x88 をストア </li>
+  <li> アドレス 20 番からロード、 データ 0x88 を取り出すことができる </li>
+  <li> アドレス 16 番からロード、 データ 0xcc を取り出すことができる </li>
+</ol>
+
+<p> のように、アドレス毎に、最後にストアしたデータが読めるようになっている。 </p>
+
+<p> また、ロードする操作では、データは変わらず、何度ロードしても最後にストアしたデータが読める </p>
+
+<ol>
+  <li> アドレス 20 番に、データ 0x88 をストア </li>
+  <li> アドレス 20 番からロード、 データ 0x88 を取り出すことができる </li>
+  <li> アドレス 20 番からロード、 データ 0x88 を取り出すことができる </li>
+  <li> アドレス 20 番からロード、 データ 0x88 を取り出すことができる </li>
+  <li> アドレス 20 番からロード、 データ 0x88 を取り出すことができる </li>
+  <li> アドレス 20 番に、データ 0xcc をストア </li>
+  <li> アドレス 20 番からロード、 データ 0xcc を取り出すことができる </li>
+</ol>
+
+<p> 
+  "メイン"メモリ ("主"記憶装置) は、"メイン" ("主")と呼ばれるだけあって、コンピュータを使うときに、レジスタの次によく使われる記憶用デバイスだ。
+  メインメモリはCPUの外側にあるのだが、よく使うデバイスなので、メインメモリを操作するための専用の命令が、CPUの中に用意されている。
+</p>
+
+<p>
+  その専用命令が、<em>ロード命令</em>と<em>ストア命令</em> だ。どのぐらいよく使うかというと、add 命令と同じか、それ以上の頻度で使われる命令だ。
+</p>
+
+<p>
+  (実際には、この説明は正確ではない。正しい解説はもう少しあとで書く)
+</p>
+
+<p>
+  <em>ロード命令</em> は、メインメモリにアドレスで識別されるデータを要求し、得られたデータをレジスタに格納する命令で、
+  <em>ストア命令</em> は、メインメモリにレジスタに含まれるデータを、指定したアドレスに保存するように、メインメモリに要求する命令だ。
+</p>
+
+<p> x86_64 の AT&amp;T 記法では、それぞれ次のように書く </p>
+
+<ul>
+  <li> ロード命令 : mov アドレス, レジスタ : (メインメモリの中のデータのうち、アドレスで識別されるデータを取得して、レジスタに保存する) </li>
+  <li> ストア命令 : mov レジスタ, アドレス : (レジスタに含まれるデータを、メインメモリの中のアドレスで識別される領域に保存する) </li>
+</ul>
+
+<p> 見てわかるかもしれないが、x86_64 では、ロード命令も、ストア命令も両方とも、"mov命令" だ。ニーモニックとしては区別されず、オペランドの順序が変わっているだけである </p>
+
+<p> 
+  これはややこしいかもしれないが、そうなってしまっているので仕方ない。
+  筆者はロード命令とストア命令は別物だと理解したほうが理解しやすいと思っているので、mov 命令を見たときは、
+</p>
+
+<ul>
+  <li> レジスタに数値データ(即値という)を直接入れる mov命令 (上のほうで使っていたmovだ) </li>
+  <li> レジスタのデータを別のレジスタにコピーする mov命令 (あ、説明してない。あとで上に追加しておこう) </li>
+  <li> ロード mov命令 </li>
+  <li> ストア mov命令 </li>
+</ul>
+
+<p> の、どれになるかをきちんと区別するのをお勧めしたい。区別の仕方を覚えよう </p>
+
+<ul>
+  <li> 即値mov は、即値に '$' が付き、それに&percnt;からはじまるレジスタ名が続く : " mov $15, &percnt;rax" </li>
+  <li> レジスタ間コピーは、両方のオペランドに&percnt;からはじまるレジスタ名が入る : " mov &percnt;rax, &percnt;rdx" </li>
+  <li> ロードは最初のオペランドに、'$'が付かない数字、もしくは丸括弧'()'でくくられたレジスタ名が入る : "mov (&percnt;rax), %rdx " </li>
+  <li> ストアは二番目のオペランドに、'$'が付かない数字、もしくは丸括弧'()'でくくられたレジスタ名が入る : "mov %rdx, (&percnt;rax)" </li>
+</ul>
+
+<p> (実際は、もう少し話がややこしい。これはx86_64機械語のところで説明する) </p>
+
+<p> ともかく、言いたかったこととしては、mov命令を使うと、メインメモリの中のアドレスで識別できる領域に対して、データを保存したり、保存したデータを取り出したりできるということだ。 </p>
+
+<p> それでは、早速、このmov命令の挙動を見てみよう。 </p>
+
+<p> <a href="1/load.s"> 1/load.s </a> </p>
+<pre>
+	.globl	main
+main:
+	mov $99, %rax
+	mov %rax,0  		# アドレス0で識別される領域に、raxの値(99)を保存する
+	mov 0, %r8 		# アドレス0で識別される領域から、値を取り出し、その値をr8に格納する
+	ret
+</pre>
+
+<p> これをさきほどと同じように、gcc で a.out に変換し、それを gdb で見てみよう </p>
+
+<pre>
+ $ gcc load.s
+ $ gdb a.out
+GNU gdb (GDB) 8.2
+Copyright (C) 2018 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Type "show copying" and "show warranty" for details.
+This GDB was configured as "x86_64-pc-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+&lt;http://www.gnu.org/software/gdb/bugs/&gt;.
+Find the GDB manual and other documentation resources online at:
+    &lt;http://www.gnu.org/software/gdb/documentation/&gt;.
+
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from a.out...(no debugging symbols found)...done.
+(gdb) start
+Temporary breakpoint 1 at 0x401106
+Starting program: /home/w0/src/pllp/docs/1/a.out 
+
+Temporary breakpoint 1, 0x0000000000401106 in main ()
+(gdb) stepi
+0x000000000040110d in main ()
+(gdb) stepi
+
+Program received signal SIGSEGV, Segmentation fault.
+0x000000000040110d in main ()
+(gdb) stepi
+
+Program terminated with signal SIGSEGV, Segmentation fault.
+The program no longer exists.
+(gdb) 
+
+</pre> 
+
+<p> おや…何かがおかしい… SIGSEGV とか出てんぞ…なんか間違えたか…もう無理や…なんもわからん… </p>
+
+<p> (ここまで書いた) </p>
 
 
 <h3> プログラムカウンタと分岐 </h3>
@@ -850,7 +1010,9 @@ $11 = 0xa5
  <h2> x86_64 機械語入門 </h2>
 
  <h2> おまけ : printf </h2>
- <h2> おまけ : shellcode </h2>
+ <h2> おまけ : shellcode,PIC,PIE,ASLR </h2>
+
+<h1> バス、メモリ、周辺IO、MMIO </h1>
 
 <h1> Linux デバイスドライバ </h1>
 
