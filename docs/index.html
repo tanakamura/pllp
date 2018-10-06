@@ -883,8 +883,8 @@ $11 = 0xa5
 <ul>
   <li> 即値mov は、即値に '$' が付き、それに&percnt;からはじまるレジスタ名が続く : " mov $15, &percnt;rax" </li>
   <li> レジスタ間コピーは、両方のオペランドに&percnt;からはじまるレジスタ名が入る : " mov &percnt;rax, &percnt;rdx" </li>
-  <li> ロードは最初のオペランドに、'$'が付かない数字、もしくは丸括弧'()'でくくられたレジスタ名が入る : "mov (&percnt;rax), %rdx " </li>
-  <li> ストアは二番目のオペランドに、'$'が付かない数字、もしくは丸括弧'()'でくくられたレジスタ名が入る : "mov %rdx, (&percnt;rax)" </li>
+  <li> ロードは最初のオペランドに、'$'が付かない数字、もしくは丸括弧'()'でくくられたレジスタ名が入る : "mov (&percnt;rax), %rdx " or "mov 15, &percnt;rax </li>
+  <li> ストアは二番目のオペランドに、'$'が付かない数字、もしくは丸括弧'()'でくくられたレジスタ名が入る : "mov %rdx, (&percnt;rax)" or "mov &percnt;rax, 15</li>
 </ul>
 
 <p> (実際は、もう少し話がややこしい。これはx86_64機械語のところで説明する) </p>
@@ -1195,41 +1195,56 @@ main:
 
 <pre>
 (gdb) start
-Temporary breakpoint 1 at 0x401b55
+The program being debugged has been started already.
+Start it from the beginning? (y or n) y
+Temporary breakpoint 2 at 0x401b55
 Starting program: /home/w0/src/pllp/docs/1/a.out 
 
-Temporary breakpoint 1, 0x0000000000401b55 in main ()
+Temporary breakpoint 2, 0x0000000000401b55 in main ()
 (gdb) stepi
 0x0000000000401b5c in main ()
+(gdb) x/g 0x800000
+0x800000 &lt;completed.6735&gt;:	0
+(gdb) p /x $rax
+$2 = 0x99
 (gdb) disassemble
 Dump of assembler code for function main:
-   0x0000000000401b55 &lt;+0&gt;:	mov    $0x63,%rax
+   0x0000000000401b55 &lt;+0&gt;:	mov    $0x99,%rax
 =&gt; 0x0000000000401b5c &lt;+7&gt;:	mov    %rax,0x800000
    0x0000000000401b64 &lt;+15&gt;:	mov    0x800000,%r8
    0x0000000000401b6c &lt;+23&gt;:	retq   
    0x0000000000401b6d &lt;+24&gt;:	nopl   (%rax)
 End of assembler dump.
-(gdb) x/dg 0x800000
-0x800000 &lt;completed.6735&gt;:	0
 (gdb) stepi
 0x0000000000401b64 in main ()
+(gdb) x/g 0x800000
+0x800000 &lt;completed.6735&gt;:	0x0000000000000099
 (gdb) disassemble
 Dump of assembler code for function main:
-   0x0000000000401b55 &lt;+0&gt;:	mov    $0x63,%rax
+   0x0000000000401b55 &lt;+0&gt;:	mov    $0x99,%rax
    0x0000000000401b5c &lt;+7&gt;:	mov    %rax,0x800000
 =&gt; 0x0000000000401b64 &lt;+15&gt;:	mov    0x800000,%r8
    0x0000000000401b6c &lt;+23&gt;:	retq   
    0x0000000000401b6d &lt;+24&gt;:	nopl   (%rax)
 End of assembler dump.
-(gdb) x/dg 0x800000
-0x800000 &lt;completed.6735&gt;:	99
-(gdb) p $r8
-$1 = 2
 (gdb) stepi
 0x0000000000401b6c in main ()
-(gdb) p $r8
-$2 = 99
+(gdb) p /x $r8
+$3 = 0x99
 </pre>
+
+<p> また新しいgdbコマンドを使ってしまった。ここで使っているのは、"x" コマンドだ。 </p>
+
+<p>
+  "x" コマンドは、メインメモリに格納されているデータを表示するコマンドで、"x アドレス" というようにして実行する。 
+  "x" のあとに"/" と文字を書くと、表示方法を指定できる。/g だと、メモリに格納されたデータを、64bit 値として16進数で表示する。
+</p>
+
+<p>
+  &percnt;rax に、0x99 を格納した状態で、&percnt;rax の値を 0x800000にストアしたあとに、"x /g 0x800000" コマンドを実行すると、メモリに0x99 が格納されていること、
+  その次にアドレス 0x800000 から &percnt;r8 に0x800000からデータをロードすると、&percnt;r8 の値が0x99 になっていることを確認してほしい。
+</p>
+
 
 
 <p> (ここまで書いた) </p>
