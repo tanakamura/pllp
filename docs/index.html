@@ -1446,9 +1446,115 @@ $3 = 0x99
   </tr>
 </table>
 
-<p> を見ても、何かルールがありそうな、なさそうな形をしているし、あと、add などの算術演算は、下位16bit や 32bit だけで演算できて、add のオペランドに、alレジスタなどを入れると8bit加算ができたりするのだけど、8bit、16bit算術演算は性能上の理由で使用が推奨されていない、が、64bit環境でも、32bit 算術演算が使える場合は使ったほうが性能上わずかに有利とか、そういう初見殺しルールがあったりする。(この話は<a href="http://d.hatena.ne.jp/w_o/20140828#1409230235"> nopの話 </a> とあわせて結構好きなネタなので、気が向いたら書く) </p>
+<p> を見ても、何かルールがありそうな、なさそうな形をしているし、あと、add などの算術演算は、レジスタの下位16bit や 下位32bit だけで演算できて、add のオペランドに、alレジスタなどを入れると8bit加算ができたりするのだけど、8bit、16bit算術演算は性能上の理由で使用が推奨されていない、が、64bit環境でも、32bit 算術演算が使える場合は使ったほうが性能上わずかに有利とか、そういう初見殺しルールがあったりする。(この話は<a href="http://d.hatena.ne.jp/w_o/20140828#1409230235"> nopの話 </a> とあわせて結構好きなネタなので、気が向いたら書く) </p>
 
 <p> その話はともかく、現代のx86_64では、名前のルールにひどい仕様が残っているものの、正しい命令を使えば実行時の悪影響はゼロにすることができて、コンパイラは効率良いコードを出すので安心してほしい。 基本的には、上の表に書いた命令を使っていればよい。 </p>
+
+<p> 符号拡張の挙動を見ておこう </p>
+
+<p> <a href="small-load-store.s"> small-load-store.s </a> </p>
+
+<pre>
+	# gcc -static -no-pie -Tbss=0x800000 small-load-store.s でビルドすること
+
+	.globl main
+main:
+	mov	$0xff, %rax
+	mov	%al, 0x800000 	# 1byte の 0xff を 0x800000 にストア
+	movsxb	0x800000, %r8
+
+	ret
+</pre>
+
+<pre>
+(gdb) display /4i $pc
+1: x/4i $pc
+&lt;error: No registers.&gt;
+(gdb) start
+Temporary breakpoint 1 at 0x401106
+Starting program: /home/w0/src/pllp/docs/1/a.out 
+
+Temporary breakpoint 1, 0x0000000000401106 in main ()
+1: x/4i $pc
+=&gt; 0x401106 &lt;main&gt;:	mov    $0xff,%rax
+   0x40110d &lt;main+7&gt;:	mov    %al,0x800000
+   0x401114 &lt;main+14&gt;:	movsbq 0x800000,%r8
+   0x40111d &lt;main+23&gt;:	retq   
+(gdb) stepi
+0x000000000040110d in main ()
+1: x/4i $pc
+=&gt; 0x40110d &lt;main+7&gt;:	mov    %al,0x800000
+   0x401114 &lt;main+14&gt;:	movsbq 0x800000,%r8
+   0x40111d &lt;main+23&gt;:	retq   
+   0x40111e &lt;main+24&gt;:	xchg   %ax,%ax
+(gdb) stepi
+0x0000000000401114 in main ()
+1: x/4i $pc
+=&gt; 0x401114 &lt;main+14&gt;:	movsbq 0x800000,%r8
+   0x40111d &lt;main+23&gt;:	retq   
+   0x40111e &lt;main+24&gt;:	xchg   %ax,%ax
+   0x401120 &lt;__libc_csu_init&gt;:	endbr64 
+(gdb) x/8bx 0x800000
+0x800000 &lt;completed.7286&gt;:	0xff	0x00	0x00	0x00	0x00	0x00	0x00	0x00
+(gdb) stepi
+0x000000000040111d in main ()
+1: x/4i $pc
+=&gt; 0x40111d &lt;main+23&gt;:	retq   
+   0x40111e &lt;main+24&gt;:	xchg   %ax,%ax
+   0x401120 &lt;__libc_csu_init&gt;:	endbr64 
+   0x401124 &lt;__libc_csu_init+4&gt;:	push   %r15
+(gdb) p $r8
+$1 = -1
+(gdb) p /x $r8
+$2 = 0xffffffffffffffff
+</pre>
+
+<p> 
+  一個便利な gdb コマンドを説明しておこう。"display" だ。 "display" は、"x" とほぼ同じコマンドだが、
+  一度 "display" コマンドを実行すると、以降は、gdbのコマンドを実行するごとに、毎回メモリのダンプ結果を表示してくれる。
+  "display /4i $pc" は、"プログラムカウンタが指す位置にあるメモリの中身を命令として4個分表示しろ"と指示するコマンドだ。
+  一旦これを書いておけば、以降はgdbのコマンドを実行するごとにプログラムカウンタ周辺の命令をダンプしてくれるようになる。
+</p>
+
+<p> rax レジスタに、1byteの-1 (0xff) を格納後、その下位8bit をストア、それを符号拡張してロードし、r8レジスタに入れると、r8 レジスタの値が64bit値の-1 (0xffff_ffff_ffff_ffff) になっていることを確認しよう。 </p>
+
+
+<p> そしてまたもう一個必要な説明が抜けていた。メモリオペランドのサイズだ。 </p>
+
+<p> movsx は、単なる mov と違い、ニーモニックとオペランドのペアから実行する機械語が一意に定まらない。 </p>
+
+<pre>
+     movsx $0x800000, %rax  # 8bit 符号拡張ロード (?)
+     movsx $0x800000, %rax  # 16bit 符号拡張ロード (?)
+     movsx $0x800000, %rax  # 32bit 符号拡張ロード (?)
+</pre>
+
+<p>
+  何かしらの方法で、ロードするデータのサイズを明示的に指示する必要がある。
+  これもまた初心者殺しで、AT&amp;T記法と、Intel記法で指示する方法が違う。
+</p>
+
+<p> AT&amp;T 記法では、命令のニーモニックに、ロードするサイズを指示する接尾辞を付ける。
+  8bit なら "b"、16bit なら "w"、32bit なら "l" だ。
+</p>
+
+<pre>
+     movsxb $0x800000, %rax  # 8bit 符号拡張ロード
+     movsxw $0x800000, %rax  # 16bit 符号拡張ロード
+     movsxl $0x800000, %rax  # 32bit 符号拡張ロード
+</pre>
+
+<p> Intel 記法では、メモリオペランドのほうに、ロードするデータのサイズを書く。 
+  (Intel記法にもさらに流派があって、nasm では PTR を書かないようだ。
+  筆者はもうよくわからないので詳細は近くの詳しい人に聞いてほしい)
+</p>
+
+<pre>
+     movsx rax, BYTE PTR [0x800000] ; 8bit 符号拡張ロード
+     movsx rax, WORD PTR [0x800000] ; 8bit 符号拡張ロード
+     movsx rax, DWORD PTR [0x800000] ; 8bit 符号拡張ロード
+</pre>
+
 
 <p> (ここまで書いた) </p>
 

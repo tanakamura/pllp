@@ -1,4 +1,4 @@
-	# gcc -static -no-pie -Tbss=0x800000 add.s のようにビルドすれば、0x800000 のアドレスに
+	# gcc -static -no-pie -Tbss=0x800000 load-v2.s のようにビルドすれば、0x800000 のアドレスに
 	# メインメモリがOSから割り当てられた状態でプログラムが起動する実行ファイルを作ることができる
 
 	.globl	main
