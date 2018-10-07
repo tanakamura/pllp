@@ -1426,22 +1426,22 @@ $3 = 0x99
 
   <tr> 
     <td> 32bit </td>
-    <td> movsl アドレス,64bit_register </td>
+    <td> movsx アドレス,64bit_register </td>
     <td> mov アドレス,32bit_register </td>
     <td> mov 32bit_register, アドレス </td>
   </tr>
 
   <tr> 
     <td> 16bit </td>
-    <td> movsw アドレス,64bit register </td>
-    <td> movzw アドレス,64bit register </td>
+    <td> movsx アドレス,64bit register </td>
+    <td> movzx アドレス,64bit register </td>
     <td> mov 16bit_register, アドレス </td>
   </tr>
 
   <tr> 
     <td> 8bit </td>
-    <td> movsb アドレス,64bit register </td>
-    <td> movzb アドレス,64bit register </td>
+    <td> movsx アドレス,64bit register </td>
+    <td> movzx アドレス,64bit register </td>
     <td> mov 8bit_register, アドレス </td>
   </tr>
 </table>
@@ -1449,7 +1449,6 @@ $3 = 0x99
 <p> を見ても、何かルールがありそうな、なさそうな形をしているし、あと、add などの算術演算は、下位16bit や 32bit だけで演算できて、add のオペランドに、alレジスタなどを入れると8bit加算ができたりするのだけど、8bit、16bit算術演算は性能上の理由で使用が推奨されていない、が、64bit環境でも、32bit 算術演算が使える場合は使ったほうが性能上わずかに有利とか、そういう初見殺しルールがあったりする。(この話は<a href="http://d.hatena.ne.jp/w_o/20140828#1409230235"> nopの話 </a> とあわせて結構好きなネタなので、気が向いたら書く) </p>
 
 <p> その話はともかく、現代のx86_64では、名前のルールにひどい仕様が残っているものの、正しい命令を使えば実行時の悪影響はゼロにすることができて、コンパイラは効率良いコードを出すので安心してほしい。 基本的には、上の表に書いた命令を使っていればよい。 </p>
-
 
 <p> (ここまで書いた) </p>
 
