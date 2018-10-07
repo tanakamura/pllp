@@ -1556,6 +1556,87 @@ $2 = 0xffffffffffffffff
 </pre>
 
 
+<p> 
+  さて、これで必要なことはひととおり説明したはずなので、ロードストア命令について掘り下げていこう。
+</p>
+
+
+<p> メインメモリのメモリアドレスは、整数値だと書いた。この整数値は、レジスタに入っていても構わない。 </p>
+
+<p> 
+  レジスタに含まれる整数値を使って、メインメモリを参照することを、<em>レジスタ間接参照 (register indirect addresssing) </em> と呼ぶ。</p>
+
+<p>
+  x86_64 の AT&amp;T 記法では、レジスタ名を丸括弧'()'で囲むと、そのレジスタを使ったレジスタ間接参照になる。
+</p>
+
+<p> <a href="1/register-indirect.s"> 1/register-indirect.s </a> </p>
+
+<pre>
+	# gcc -static -no-pie -Tbss=0x800000 load-v2.s のようにビルドすれば、0x800000 のアドレスに
+	# メインメモリがOSから割り当てられた状態でプログラムが起動する実行ファイルを作ることができる
+
+	.globl	main
+main:
+	mov $0x99, %rax
+	mov %rax, 0x800000      # 0x800000 に 0x99 をストア
+
+	mov $0x800000, %rdx 	# RDX に整数値0x800000 を入れる
+	mov (%rdx), %r8         # RDXの値(0x800000)をアドレスとして、メインメモリからロード
+	
+	ret
+</pre>
+
+<p> これを実行してみよう </p>
+
+<pre>
+(gdb) display /4i $pc
+1: x/4i $pc
+&lt;error: No registers.&gt;
+(gdb) start
+Temporary breakpoint 1 at 0x401106
+Starting program: /home/w0/src/pllp/docs/1/a.out 
+
+Temporary breakpoint 1, 0x0000000000401106 in main ()
+1: x/4i $pc
+=&gt; 0x401106 &lt;main&gt;:	mov    $0x99,%rax
+   0x40110d &lt;main+7&gt;:	mov    %rax,0x800000
+   0x401115 &lt;main+15&gt;:	mov    $0x800000,%rdx
+   0x40111c &lt;main+22&gt;:	mov    (%rdx),%r8
+(gdb) stepi
+0x000000000040110d in main ()
+1: x/4i $pc
+=&gt; 0x40110d &lt;main+7&gt;:	mov    %rax,0x800000
+   0x401115 &lt;main+15&gt;:	mov    $0x800000,%rdx
+   0x40111c &lt;main+22&gt;:	mov    (%rdx),%r8
+   0x40111f &lt;main+25&gt;:	retq   
+(gdb) 
+0x0000000000401115 in main ()
+1: x/4i $pc
+=&gt; 0x401115 &lt;main+15&gt;:	mov    $0x800000,%rdx
+   0x40111c &lt;main+22&gt;:	mov    (%rdx),%r8
+   0x40111f &lt;main+25&gt;:	retq   
+   0x401120 &lt;__libc_csu_init&gt;:	endbr64 
+(gdb) 
+0x000000000040111c in main ()
+1: x/4i $pc
+=&gt; 0x40111c &lt;main+22&gt;:	mov    (%rdx),%r8
+   0x40111f &lt;main+25&gt;:	retq   
+   0x401120 &lt;__libc_csu_init&gt;:	endbr64 
+   0x401124 &lt;__libc_csu_init+4&gt;:	push   %r15
+(gdb) 
+0x000000000040111f in main ()
+1: x/4i $pc
+=&gt; 0x40111f &lt;main+25&gt;:	retq   
+   0x401120 &lt;__libc_csu_init&gt;:	endbr64 
+   0x401124 &lt;__libc_csu_init+4&gt;:	push   %r15
+   0x401126 &lt;__libc_csu_init+6&gt;:	mov    %rdx,%r15
+(gdb) p /x $rdx
+$1 = 0x800000
+(gdb) p /x $r8
+$2 = 0x99
+</pre>
+
 <p> (ここまで書いた) </p>
 
 
