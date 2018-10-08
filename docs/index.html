@@ -2136,10 +2136,10 @@ $1 = 0x11223344
 <pre>
 (gdb) display /5i $pc
 1: x/5i $pc
-=&gt; 0x404028 &lt;main&gt;:	movl   $0x11223344,0x404039
+=&gt; 0x404028 &lt;main&gt;:	movl   $0x11223344,0x404039 <font color="red">&lt;= このストアの実行後</font>
    0x404033 &lt;main+11&gt;:	jmp    0x404035 &lt;main+13&gt;
    0x404035 &lt;main+13&gt;:	nop
-   0x404036 &lt;mov_inst&gt;:	mov    $0x1,%rax           <font color="red">&lt;= mov $0x1, &percnt;rax が</font>
+   0x404036 &lt;mov_inst&gt;:	mov    $0x1,%rax            <font color="red">&lt;= mov $0x1, &percnt;rax が</font>
    0x40403d &lt;mov_inst+7&gt;:	retq   
 (gdb) display /8xb mov_inst
 2: x/8xb mov_inst
@@ -2149,14 +2149,14 @@ $1 = 0x11223344
 1: x/5i $pc
 =&gt; 0x404033 &lt;main+11&gt;:	jmp    0x404035 &lt;main+13&gt;
    0x404035 &lt;main+13&gt;:	nop
-   0x404036 &lt;mov_inst&gt;:	mov    $0x11223344,%rax    <font color="red">&lt;= mov $0x11223344, %rax に書きかわっている</font>
+   0x404036 &lt;mov_inst&gt;:	mov    $0x11223344,%rax     <font color="red">&lt;= mov $0x11223344, %rax に書きかわっている</font>
    0x40403d &lt;mov_inst+7&gt;:	retq   
    0x40403e:	rex.RXB
 2: x/8xb mov_inst
 0x404036 &lt;mov_inst&gt;:	0x48	0xc7	0xc0	0x44	0x33	0x22	0x11	0xc3
 </pre>
 
-<p> また、最後に、&percnt;rax の値が、0x11223344 になっており、実際に命令が書きかわって効果があらわれていることを確認しよう。 </p>
+<p> また、最後に、rax の値が、0x11223344 になっており、実際に命令が書きかわって効果があらわれていることを確認しよう。 </p>
 
 <pre>
 (gdb) p /x $rax
