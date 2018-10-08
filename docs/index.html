@@ -2064,8 +2064,155 @@ mov_inst:
 	ret
 </pre>
 
+<p> いくつか説明していないことが含まれているが、とりあえず実行してみる。 </p>
 
-<p> またいくつか説明していないことが出てきたので説明しておこう。 </p>
+<pre>
+(gdb) start
+Temporary breakpoint 1 at 0x404028
+Starting program: /home/w0/src/pllp/docs/1/a.out 
+
+Temporary breakpoint 1, 0x0000000000404028 in main ()
+(gdb) display /x5i $pc
+Invalid number "5i".
+(gdb) display /5i $pc
+1: x/5i $pc
+=&gt; 0x404028 &lt;main&gt;:	movl   $0x11223344,0x404039
+   0x404033 &lt;main+11&gt;:	jmp    0x404035 &lt;main+13&gt;
+   0x404035 &lt;main+13&gt;:	nop
+   0x404036 &lt;mov_inst&gt;:	mov    $0x1,%rax
+   0x40403d &lt;mov_inst+7&gt;:	retq   
+(gdb) display /8xb mov_inst
+2: x/8xb mov_inst
+0x404036 &lt;mov_inst&gt;:	0x48	0xc7	0xc0	0x01	0x00	0x00	0x00	0xc3
+(gdb) stepi
+0x0000000000404033 in main ()
+1: x/5i $pc
+=&gt; 0x404033 &lt;main+11&gt;:	jmp    0x404035 &lt;main+13&gt;
+   0x404035 &lt;main+13&gt;:	nop
+   0x404036 &lt;mov_inst&gt;:	mov    $0x11223344,%rax
+   0x40403d &lt;mov_inst+7&gt;:	retq   
+   0x40403e:	rex.RXB
+2: x/8xb mov_inst
+0x404036 &lt;mov_inst&gt;:	0x48	0xc7	0xc0	0x44	0x33	0x22	0x11	0xc3
+(gdb) stepi
+0x0000000000404035 in main ()
+1: x/5i $pc
+=&gt; 0x404035 &lt;main+13&gt;:	nop
+   0x404036 &lt;mov_inst&gt;:	mov    $0x11223344,%rax
+   0x40403d &lt;mov_inst+7&gt;:	retq   
+   0x40403e:	rex.RXB
+   0x40403f:	rex.XB
+2: x/8xb mov_inst
+0x404036 &lt;mov_inst&gt;:	0x48	0xc7	0xc0	0x44	0x33	0x22	0x11	0xc3
+(gdb) stepi
+0x0000000000404036 in mov_inst ()
+1: x/5i $pc
+=&gt; 0x404036 &lt;mov_inst&gt;:	mov    $0x11223344,%rax
+   0x40403d &lt;mov_inst+7&gt;:	retq   
+   0x40403e:	rex.RXB
+   0x40403f:	rex.XB
+   0x404040:	rex.XB cmp (%r8),%spl
+2: x/8xb mov_inst
+0x404036 &lt;mov_inst&gt;:	0x48	0xc7	0xc0	0x44	0x33	0x22	0x11	0xc3
+(gdb) stepi
+0x000000000040403d in mov_inst ()
+1: x/5i $pc
+=&gt; 0x40403d &lt;mov_inst+7&gt;:	retq   
+   0x40403e:	rex.RXB
+   0x40403f:	rex.XB
+   0x404040:	rex.XB cmp (%r8),%spl
+   0x404043:	sub    %al,0x4e(%rdi)
+2: x/8xb mov_inst
+0x404036 &lt;mov_inst&gt;:	0x48	0xc7	0xc0	0x44	0x33	0x22	0x11	0xc3
+(gdb) p /x $rax
+$1 = 0x11223344
+(gdb) 
+</pre>
+
+<p>
+  以下の部分で、main の先頭にある mov 命令によるストアの実行後、mov $1, &percnt;rax の命令が書きかわっていることを確認しよう。
+</p>
+
+<pre>
+(gdb) display /5i $pc
+1: x/5i $pc
+=&gt; 0x404028 &lt;main&gt;:	movl   $0x11223344,0x404039
+   0x404033 &lt;main+11&gt;:	jmp    0x404035 &lt;main+13&gt;
+   0x404035 &lt;main+13&gt;:	nop
+   0x404036 &lt;mov_inst&gt;:	mov    $0x1,%rax           <font color="red">&lt;= mov $0x1, &percnt;rax が</font>
+   0x40403d &lt;mov_inst+7&gt;:	retq   
+(gdb) display /8xb mov_inst
+2: x/8xb mov_inst
+0x404036 &lt;mov_inst&gt;:	0x48	0xc7	0xc0	0x01	0x00	0x00	0x00	0xc3
+(gdb) stepi
+0x0000000000404033 in main ()
+1: x/5i $pc
+=&gt; 0x404033 &lt;main+11&gt;:	jmp    0x404035 &lt;main+13&gt;
+   0x404035 &lt;main+13&gt;:	nop
+   0x404036 &lt;mov_inst&gt;:	mov    $0x11223344,%rax    <font color="red">&lt;= mov $0x11223344, %rax に書きかわっている</font>
+   0x40403d &lt;mov_inst+7&gt;:	retq   
+   0x40403e:	rex.RXB
+2: x/8xb mov_inst
+0x404036 &lt;mov_inst&gt;:	0x48	0xc7	0xc0	0x44	0x33	0x22	0x11	0xc3
+</pre>
+
+<p> また、最後に、&percnt;rax の値が、0x11223344 になっており、実際に命令が書きかわって効果があらわれていることを確認しよう。 </p>
+
+<pre>
+(gdb) p /x $rax
+$1 = 0x11223344
+</pre>
+
+<p> "mov $0x1, %rax" という文は、メインメモリ上では、0x48 0xc7 0xc0 0x01 0x00 0x00 0x00 というバイト列として表現される。</p>
+
+<p> objdump というツールを使えば、命令と対応するバイト列を知ることができる </p>
+
+
+<pre>
+$ objdump -d a.out
+セクション axw の逆アセンブル:
+
+0000000000404028 &lt;main&gt;:
+  404028:       c7 04 25 39 40 40 00    movl   $0x11223344,0x404039
+  40402f:       44 33 22 11 
+  404033:       eb 00                   jmp    404035 &lt;main+0xd&gt;
+  404035:       90                      nop
+
+0000000000404036 &lt;mov_inst&gt;:
+  404036:       48 c7 c0 01 00 00 00    mov    $0x1,%rax
+  40403d:       c3                      retq   
+</pre>
+
+<p> これを見れば、0x48 0xc7 0xc0 0x01 0x00 0x00 0x00 になることがわかるだろう。(筆者も別に覚えているわけではなくて、これを見てカンニングしている) </p>
+
+<p> このバイト列の意味は、 </p>
+
+
+<pre> 
+48 c7 c0       01 00 00 00    mov    $0x1,%rax
+mov imm,rax    imm=0x00000001
+</pre>
+
+<p> と、なっていて、最初の3byteで、即値(<font color="red">imm</font>ediate)をraxに転送するmov命令だとあらわしていて、後ろの4byteで、転送するimmの32bit値をあらわしている。 
+後ろの4byteはそのまま32bit値なので、これを書きかえれば、命令中の即値が変わる。
+</p>
+
+<pre> 
+# x86_64 はリトルエンディアンなので、バイト列は順番が反対に表示されることに注意
+48 c7 c0       44 33 22 11    mov    $0x11223344,%rax
+mov imm,rax    imm=0x11223344
+</pre>
+
+
+<p>
+  このように書きかえているのが、上のプログラムだ。
+  プログラムの挙動を見れば、CPUの命令というのはメインメモリに配置されたバイト列だということがわかるだろう。
+  (これも大事なのでわからない人は連絡ください)
+</p>
+
+
+
+<p> いくつか説明していないことが出てきたのでその点の説明をしておこう。 </p>
 
 <p> まず、</p>
 
@@ -2100,11 +2247,13 @@ mov_inst:
 </pre>
 
 <p>
-  この部分は、Intel のマニュアルに、こうしろと書いてあるから書いている。これが必要なのが、x86_64 というCPUだ。
+  この部分は、Intel のマニュアルにこうしろと書いてあるから書いている。
+  x86_64 では、命令列を書きかえたあとは、一旦この命令を実行しないといけない。
+
   これが必要な理由は、CPUハードウェアの実装によるので、正しい説明はできないが、
-  簡単に説明しておくと、CPUの命令をバイト列として扱うのは、滅多にやらないことなので、
+  簡単に説明しておくと、CPUの命令をバイト列として実行時に書きかえるのは、滅多にやらないことなので、
   CPU内部では、データ用バイト列が流れる道と、命令用のバイト列が流れる道が別々に設計してあることが多い。
-  そのふたつの道をちゃんと同期するために、「一回ジャンプしろ」というようになっている。
+  そのふたつの道をちゃんと同期するために、この処理が必要だ。
 </p>
 
 <p> それから、 </p>
@@ -2116,11 +2265,10 @@ mov_inst:
         ...
 </pre>
 
-<p> この、mov_inst…これも…詳しくはリンカのところで説明かな… </p>
+<p> この、mov_inst…これも…詳しくはリンカのところで説明しゅる… </p>
 
 <p>
-  一応、簡単に説明しておこう。
-  "main関数" のところで
+  一応、簡単に説明しておこう。"main関数" のところで
 </p>
 
 <pre>
@@ -2135,7 +2283,13 @@ main:
 mov_inst:
 </pre>
 
-<p> も、main: と同じくラベルになる。 </p>
+<p> も、main: と同じくラベルになる。ラベルは、整数値アドレスと同じように、アセンブリ言語内で、アドレスのように扱うことができる。 </p>
+
+<pre>
+label:
+        mov 0x800000, %rax  # movのようにオペランドにメモリアドレスを取れる命令は、
+        mov label, %rax     # 同じようにラベルをオペランドに取ることができる
+</pre>
 
 <p> (ここまで書いた )</p>
 

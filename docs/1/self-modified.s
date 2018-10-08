@@ -1,3 +1,4 @@
+	.section "axw", "axw"
 	.globl main
 
 main:
