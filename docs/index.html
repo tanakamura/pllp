@@ -2934,7 +2934,15 @@ Temporary breakpoint 1, 0x00000000004004db in main ()
 $1 = 0x7ffffffee3e8
 </pre>
 
-<p> プログラム開始直後に RSP の値を表示
+<p> プログラム開始直後に RSP の値を表示してみよう。このアドレスが、OSから割り当てられたスタック領域を指すアドレスだ。 </p>
+
+<p>
+  スタックのサイズは、OS毎に異なるが、Linuxでは、<em>ulimit</em>という、プロセス毎に指定された値で決まる。
+</p>
+
+<p>
+  ulimit の値は、ulimit コマンドで確認できる。
+</p>
 
 
 <p id="kokomade"> (ここまで書いた )</p>
