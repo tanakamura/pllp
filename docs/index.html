@@ -133,6 +133,8 @@
 
 <h2> x86_64 プログラミング入門 </h2>
 
+<h3> レジスタと算術演算 </h3>
+
 <p>好きなエディタを開いて、add.s というテキストファイルを作り、中に以下のように書く</p>
 
 <p> <a href="1/add.s"> 1/add.s </a> </p>
@@ -2773,78 +2775,156 @@ func:
 	add	$1, %rax
 	ret
 
+func2:
+	call	func
+	ret
+
+func3:
+	call	func2
+	ret
+
 main:
 	mov	$0, %rax
 	call	func
-	call	func
-	call	func
+	call	func3
 	ret
 </pre>
 
 <pre>
-(gdb) display /x $rsp
-1: /x $rsp = &lt;error: No registers.&gt;
-(gdb) display $rax
-2: $rax = &lt;error: No registers.&gt;
-(gdb) display /2i $pc
-3: x/2i $pc
+(gdb) display /4gx $rsp
+1: x/4xg $rsp
 &lt;error: No registers.&gt;
-(gdb) display /4xg $rsp
-4: x/4xg $rsp
+(gdb) display $rsp
+2: $rsp = &lt;error: No registers.&gt;
+(gdb) display $rax
+3: $rax = &lt;error: No registers.&gt;
+(gdb) display /2i $pc
+4: x/2i $pc
 &lt;error: No registers.&gt;
 (gdb) start
-Temporary breakpoint 1 at 0x4004db
+Temporary breakpoint 1 at 0x4009bf
 Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
 
-Temporary breakpoint 1, 0x00000000004004db in main ()
-1: /x $rsp = 0x7ffffffee3e8
-2: $rax = 4195547
-3: x/2i $pc
-=&gt; 0x4004db &lt;main&gt;:	mov    $0x0,%rax
-   0x4004e2 &lt;main+7&gt;:	callq  0x4004d6 &lt;func&gt;
-4: x/4xg $rsp
-0x7ffffffee3e8:	0x00007fffff050830	0x0000000000000000
-0x7ffffffee3f8:	0x00007ffffffee4c8	0x00000001ff625ca0
+Temporary breakpoint 1, 0x00000000004009bf in main ()
+1: x/4xg $rsp
+0x7ffffffee388:	0x0000000000400c26	0x0000000000000000
+0x7ffffffee398:	0x0000000100000000	0x00007ffffffee4c8
+2: $rsp = (void *) 0x7ffffffee388
+3: $rax = 4196799
+4: x/2i $pc
+=&gt; 0x4009bf &lt;main&gt;:	mov    $0x0,%rax
+   0x4009c6 &lt;main+7&gt;:	callq  0x4009ae &lt;func&gt;
 (gdb) stepi
-0x00000000004004e2 in main ()
-1: /x $rsp = 0x7ffffffee3e8
-2: $rax = 0
-3: x/2i $pc
-=&gt; 0x4004e2 &lt;main+7&gt;:	callq  0x4004d6 &lt;func&gt;
-   0x4004e7 &lt;main+12&gt;:	callq  0x4004d6 &lt;func&gt;
-4: x/4xg $rsp
-0x7ffffffee3e8:	0x00007fffff050830	0x0000000000000000
-0x7ffffffee3f8:	0x00007ffffffee4c8	0x00000001ff625ca0
-(gdb) stepi
-0x00000000004004d6 in func ()
-1: /x $rsp = 0x7ffffffee3e0
-2: $rax = 0
-3: x/2i $pc
-=&gt; 0x4004d6 &lt;func&gt;:	add    $0x1,%rax
-   0x4004da &lt;func+4&gt;:	retq   
-4: x/4xg $rsp
-0x7ffffffee3e0:	0x00000000004004e7	0x00007fffff050830
-0x7ffffffee3f0:	0x0000000000000000	0x00007ffffffee4c8
-(gdb) stepi
-0x00000000004004da in func ()
-1: /x $rsp = 0x7ffffffee3e0
-2: $rax = 1
-3: x/2i $pc
-=&gt; 0x4004da &lt;func+4&gt;:	retq   
-   0x4004db &lt;main&gt;:	mov    $0x0,%rax
-4: x/4xg $rsp
-0x7ffffffee3e0:	0x00000000004004e7	0x00007fffff050830
-0x7ffffffee3f0:	0x0000000000000000	0x00007ffffffee4c8
-(gdb) stepi
-0x00000000004004e7 in main ()
-1: /x $rsp = 0x7ffffffee3e8
-2: $rax = 1
-3: x/2i $pc
-=&gt; 0x4004e7 &lt;main+12&gt;:	callq  0x4004d6 &lt;func&gt;
-   0x4004ec &lt;main+17&gt;:	callq  0x4004d6 &lt;func&gt;
-4: x/4xg $rsp
-0x7ffffffee3e8:	0x00007fffff050830	0x0000000000000000
-0x7ffffffee3f8:	0x00007ffffffee4c8	0x00000001ff625ca0
+0x00000000004009c6 in main ()
+1: x/4xg $rsp
+0x7ffffffee388:	0x0000000000400c26	0x0000000000000000
+0x7ffffffee398:	0x0000000100000000	0x00007ffffffee4c8
+2: $rsp = (void *) 0x7ffffffee388
+3: $rax = 0
+4: x/2i $pc
+=&gt; 0x4009c6 &lt;main+7&gt;:	callq  0x4009ae &lt;func&gt;
+   0x4009cb &lt;main+12&gt;:	callq  0x4009b9 &lt;func3&gt;
+(gdb) 
+0x00000000004009ae in func ()
+1: x/4xg $rsp
+0x7ffffffee380:	0x00000000004009cb	0x0000000000400c26
+0x7ffffffee390:	0x0000000000000000	0x0000000100000000
+2: $rsp = (void *) 0x7ffffffee380
+3: $rax = 0
+4: x/2i $pc
+=&gt; 0x4009ae &lt;func&gt;:	add    $0x1,%rax
+   0x4009b2 &lt;func+4&gt;:	retq   
+(gdb) 
+0x00000000004009b2 in func ()
+1: x/4xg $rsp
+0x7ffffffee380:	0x00000000004009cb	0x0000000000400c26
+0x7ffffffee390:	0x0000000000000000	0x0000000100000000
+2: $rsp = (void *) 0x7ffffffee380
+3: $rax = 1
+4: x/2i $pc
+=&gt; 0x4009b2 &lt;func+4&gt;:	retq   
+   0x4009b3 &lt;func2&gt;:	callq  0x4009ae &lt;func&gt;
+(gdb) 
+0x00000000004009cb in main ()
+1: x/4xg $rsp
+0x7ffffffee388:	0x0000000000400c26	0x0000000000000000
+0x7ffffffee398:	0x0000000100000000	0x00007ffffffee4c8
+2: $rsp = (void *) 0x7ffffffee388
+3: $rax = 1
+4: x/2i $pc
+=&gt; 0x4009cb &lt;main+12&gt;:	callq  0x4009b9 &lt;func3&gt;
+   0x4009d0 &lt;main+17&gt;:	retq   
+(gdb) 
+0x00000000004009b9 in func3 ()
+1: x/4xg $rsp
+0x7ffffffee380:	0x00000000004009d0	0x0000000000400c26
+0x7ffffffee390:	0x0000000000000000	0x0000000100000000
+2: $rsp = (void *) 0x7ffffffee380
+3: $rax = 1
+4: x/2i $pc
+=&gt; 0x4009b9 &lt;func3&gt;:	callq  0x4009b3 &lt;func2&gt;
+   0x4009be &lt;func3+5&gt;:	retq   
+(gdb) 
+0x00000000004009b3 in func2 ()
+1: x/4xg $rsp
+0x7ffffffee378:	0x00000000004009be	0x00000000004009d0
+0x7ffffffee388:	0x0000000000400c26	0x0000000000000000
+2: $rsp = (void *) 0x7ffffffee378
+3: $rax = 1
+4: x/2i $pc
+=&gt; 0x4009b3 &lt;func2&gt;:	callq  0x4009ae &lt;func&gt;
+   0x4009b8 &lt;func2+5&gt;:	retq   
+(gdb) 
+0x00000000004009ae in func ()
+1: x/4xg $rsp
+0x7ffffffee370:	0x00000000004009b8	0x00000000004009be
+0x7ffffffee380:	0x00000000004009d0	0x0000000000400c26
+2: $rsp = (void *) 0x7ffffffee370
+3: $rax = 1
+4: x/2i $pc
+=&gt; 0x4009ae &lt;func&gt;:	add    $0x1,%rax
+   0x4009b2 &lt;func+4&gt;:	retq   
+(gdb) 
+0x00000000004009b2 in func ()
+1: x/4xg $rsp
+0x7ffffffee370:	0x00000000004009b8	0x00000000004009be
+0x7ffffffee380:	0x00000000004009d0	0x0000000000400c26
+2: $rsp = (void *) 0x7ffffffee370
+3: $rax = 2
+4: x/2i $pc
+=&gt; 0x4009b2 &lt;func+4&gt;:	retq   
+   0x4009b3 &lt;func2&gt;:	callq  0x4009ae &lt;func&gt;
+(gdb) 
+0x00000000004009b8 in func2 ()
+1: x/4xg $rsp
+0x7ffffffee378:	0x00000000004009be	0x00000000004009d0
+0x7ffffffee388:	0x0000000000400c26	0x0000000000000000
+2: $rsp = (void *) 0x7ffffffee378
+3: $rax = 2
+4: x/2i $pc
+=&gt; 0x4009b8 &lt;func2+5&gt;:	retq   
+   0x4009b9 &lt;func3&gt;:	callq  0x4009b3 &lt;func2&gt;
+(gdb) 
+0x00000000004009be in func3 ()
+1: x/4xg $rsp
+0x7ffffffee380:	0x00000000004009d0	0x0000000000400c26
+0x7ffffffee390:	0x0000000000000000	0x0000000100000000
+2: $rsp = (void *) 0x7ffffffee380
+3: $rax = 2
+4: x/2i $pc
+=&gt; 0x4009be &lt;func3+5&gt;:	retq   
+   0x4009bf &lt;main&gt;:	mov    $0x0,%rax
+(gdb) 
+0x00000000004009d0 in main ()
+1: x/4xg $rsp
+0x7ffffffee388:	0x0000000000400c26	0x0000000000000000
+0x7ffffffee398:	0x0000000100000000	0x00007ffffffee4c8
+2: $rsp = (void *) 0x7ffffffee388
+3: $rax = 2
+4: x/2i $pc
+=&gt; 0x4009d0 &lt;main+17&gt;:	retq   
+   0x4009d1 &lt;main+18&gt;:	nopw   %cs:0x0(%rax,%rax,1)
+(gdb) 
 </pre>
 
 <p> x86_64 の call 命令は、1命令で次の動作をする。 </p>
@@ -2938,17 +3018,186 @@ $1 = 0x7ffffffee3e8
 <p> プログラム開始直後に RSP の値を表示してみよう。このアドレスが、OSから割り当てられたスタック領域を指すアドレスだ。 </p>
 
 <p>
-  スタックのサイズは、OS毎に異なるが、Linuxでは、<em>ulimit</em>という、プロセス毎に指定された値で決まる。
+  スタックのサイズは、OS毎に異なるが、Linuxでは、ulimitという、プロセス毎に指定された値で決まる。
 </p>
 
 <p>
-  ulimit の値は、ulimit コマンドで確認できる。
+  ulimit の値は、ulimit コマンドで確認できる。ulimitで指定できる値は色々あるが、スタックサイズを指定する場合は、ulimit -s だ
+</p>
+
+<pre>
+$ ulimit -a
+core file size          (blocks, -c) 0
+data seg size           (kbytes, -d) unlimited
+scheduling priority             (-e) 0
+file size               (blocks, -f) unlimited
+pending signals                 (-i) 7823
+max locked memory       (kbytes, -l) 64
+max memory size         (kbytes, -m) unlimited
+open files                      (-n) 1024
+pipe size            (512 bytes, -p) 8
+POSIX message queues     (bytes, -q) 819200
+real-time priority              (-r) 0
+stack size              (kbytes, -s) 8192
+cpu time               (seconds, -t) unlimited
+max user processes              (-u) 7823
+virtual memory          (kbytes, -v) unlimited
+file locks                      (-x) unlimited
+$ ulimit -s
+8192
+</pre>
+
+<p> 単位はkbytes単位と書いてあって、値は 8192 なのでスタックは8MB分割り当てられる </p>
+
+<p>
+  call,ret 命令の説明に戻ろう。
+</p>
+
+<p> call 命令はさきほど、以下のように説明した。</p>
+
+<ol>
+  <li> rsp を 8 減らす </li>
+  <li> rsp が指すアドレスに、call命令の次の命令のアドレスを格納 </li>
+  <li> オペランドで指定されたアドレスをプログラムカウンタに格納 </li>
+</ol>
+
+<p> これは、「スタックに戻りアドレスをpushして、指定されたアドレスへジャンプする」命令だ。逆にretは </p>
+
+<ol>
+  <li> rsp が指すアドレスから8byte値をロードし、その値をプログラムカウンタに格納 </li>
+  <li> rsp を 8 増やす </li>
+</ol>
+
+<p> 「スタックに積んである戻りアドレスをpopして、そのアドレスへジャンプする」命令だ。</p>
+
+<p> 挙動を細かく見ていこう。</p>
+
+<pre>
+0x00000000004009c6 in main ()
+1: x/4xg $rsp
+0x7ffffffee388:	0x0000000000400c26	0x0000000000000000
+0x7ffffffee398:	0x0000000100000000	0x00007ffffffee4c8
+2: $rsp = (void *) 0x7ffffffee388
+3: $rax = 0
+4: x/2i $pc
+=&gt; 0x4009c6 &lt;main+7&gt;:	callq  0x4009ae &lt;func&gt;
+   0x4009cb &lt;main+12&gt;:	callq  0x4009b9 &lt;func3&gt;
+(gdb) 
+0x00000000004009ae in func ()
+1: x/4xg $rsp
+0x7ffffffee380:	0x00000000004009cb	0x0000000000400c26
+0x7ffffffee390:	0x0000000000000000	0x0000000100000000
+2: $rsp = (void *) 0x7ffffffee380
+3: $rax = 0
+4: x/2i $pc
+=&gt; 0x4009ae &lt;func&gt;:	add    $0x1,%rax
+   0x4009b2 &lt;func+4&gt;:	retq   
+</pre>
+
+<p> 0x4009c6 にあるcallq命令の動作として、 </p>
+
+<ul>
+  <li> プログラムカウンタが 0x4009ae へジャンプしていること </li>
+  <li> rsp の値が8減っていること </li>
+  <li> rsp が指すメモリに、0x4009c6 の次の命令のアドレス、0x4009cb がストアされていること </li>
+</ul>
+
+<p> の、3点を確認しよう。 </p>
+
+<p> 次に、ret 命令 </p>
+
+<pre>
+0x00000000004009b2 in func ()
+1: x/4xg $rsp
+0x7ffffffee380:	0x00000000004009cb	0x0000000000400c26
+0x7ffffffee390:	0x0000000000000000	0x0000000100000000
+2: $rsp = (void *) 0x7ffffffee380
+3: $rax = 1
+4: x/2i $pc
+=&gt; 0x4009b2 &lt;func+4&gt;:	retq   
+   0x4009b3 &lt;func2&gt;:	callq  0x4009ae &lt;func&gt;
+(gdb) 
+0x00000000004009cb in main ()
+1: x/4xg $rsp
+0x7ffffffee388:	0x0000000000400c26	0x0000000000000000
+0x7ffffffee398:	0x0000000100000000	0x00007ffffffee4c8
+2: $rsp = (void *) 0x7ffffffee388
+3: $rax = 1
+4: x/2i $pc
+=&gt; 0x4009cb &lt;main+12&gt;:	callq  0x4009b9 &lt;func3&gt;
+   0x4009d0 &lt;main+17&gt;:	retq   
+</pre>
+
+<p> ret 命令の動作として、</p>
+
+<ul>
+  <li> プログラムカウンタがrspが指すメモリに格納されている 0x4009cb にジャンプすること </li>
+  <li> rsp の値が8増えていること </li>
+</ul>
+
+<p> の二点を確認しよう。 </p>
+
+<p>
+  これらが確認できたら、call func3 の挙動も同じように確認して、
+  関数呼び出しが、func3 → func2 → func と深くなっていっても、元のmainの位置を忘れることなく正確に戻ってこれる点も確認しておいてほしい。
+</p>
+
+<h3> まとめ </h3>
+
+<p> 簡単ではあるが、x86_64 のアセンブリの読み方、書き方、実行のしかたについて説明した。</p>
+
+<p> アセンブリ言語は、難しいと主張する人がいるが、仕様を完全に理解しやすいという点では、高級言語よりずっと簡単だ。</p>
+
+<p> 例えば、C 言語で、 </p>
+
+<pre>
+  int a = 5;
+</pre>
+
+<p> と書いた場合、これが何をやっているか、正確に、不足なく説明できる人はいるだろうか。 </p>
+
+<p> それに対して、アセンブリでは </p>
+
+<pre>
+  mov $5, %rax
+</pre>
+
+<p>
+  と書いた場合、「64bitレジスタRAXに64bit値の5を格納する」と言えば、正確に、不足なく説明できていると言えるだろう。
+  (まあ筆者もこの命令バイト列が実行可能ページと実行不可ページにまたがってた場合の挙動なんて知らんけど…)
+</p>
+
+<p>
+  アセンブリ言語は、一個づつ分解して理解していくことが可能だ。
+  入力が何で、どういう副作用が起こるのか、マニュアルを見れば数ページの中に正確に全て書かれている。
+</p>
+
+<p>
+  一個づつ確認して勉強できるのは、高級言語にはないアセンブリ言語のメリットだ。
+  ここで紹介した命令は、数多くある命令のうちのほんの一部だが、わからない命令が出てきたときも、ゆっくり一個づつ確認していけばいいと思う。
 </p>
 
 
+ <h2> x86_64 機械語入門 </h2>
+
+<p> さて、アセンブリ言語について説明したので、せっかくなので機械語についても説明しておこう。 </p>
+<p> 機械語(マシン語、machine language)は、アセンブルが終わったあとの、バイト列のことを指す。 </p>
+
+<p> 機械語を理解すれば、CPUの命令というものが、単なるバイト列でしかないことをきちんと理解できるだろう。 </p>
+
+<p>
+  ここでは、x86_64 を使う。x86_64 の機械語は、現代に生き残っている機械語の中では最も複雑と言ってよくて、
+  正直あんまり学習には向いてないのだが、筆者は身近なもので学習するのが一番だと思っているので、
+  ここはあえて x86_64 を使っていこうと思う。
+</p>
+
+<p>
+  x86_64 の機械語が理解できる頃には、他のCPUの機械語なんてクソ簡単に見えるようになっているはずだ！
+</p>
+
 <p id="kokomade"> (ここまで書いた )</p>
 
- <h2> x86_64 機械語入門 </h2>
+
   <h3> Intel マニュアルの読みかた </h3>
  <h2> ARMv7 プログラミング入門 </h2>
 
