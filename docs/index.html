@@ -3462,12 +3462,12 @@ main:
 
 <p>
   そう、"gcc"というコマンドは、その名前に反して、*Cコンパイラではない*！
-  "gcc"は、<em>コンパイラドライバ</em>と呼ばれるプログラムで、
+  "gcc"は、<em>コンパイラドライバ (compiler driver)</em>と呼ばれるプログラムで、
   ソースコードファイルを実行ファイルに変換する時に必要なコマンドを良い感じに呼び出してくれるツールだ。
 </p>
 
 <p>
-  この部分の挙動は、仕様もなく、ドキュメンテーションもされておらず、OS、コンパイラ毎に挙動がマチマチで、
+  <em>コンパイラドライバ</em>の挙動は、仕様もなく、ドキュメンテーションもされておらず、OS、コンパイラ毎に挙動がマチマチで、
   「良い感じに」処理してくれるとしか言いようのない動作をする。
 </p>
 
@@ -3528,7 +3528,18 @@ COLLECT_GCC_OPTIONS=&39;-v&39; &39;-mtune=generic&39; &39;-march=x86-64&39;
  /usr/lib/gcc/x86_64-linux-gnu/5/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/5/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/5/lto-wrapper -plugin-opt=-fresolution=/tmp/ccqaqkj9.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -z relro /usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu/crt1.o /usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/5/crtbegin.o -L/usr/lib/gcc/x86_64-linux-gnu/5 -L/usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/5/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/5/../../.. /tmp/ccNgb4Ka.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/x86_64-linux-gnu/5/crtend.o /usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu/crtn.o
 </pre>
 
-<p> cc1, as, collect2 コマンドが呼ばれていることを確認しよう。 </p>
+<p>
+  cc1, as, collect2 コマンドが呼ばれていることを確認しよう。
+</p>
+
+<p>
+  昔は、Cのプリプロセッサは独立したコマンドとして呼ばれていたが、今のCコンパイラは、Cプリプロセッサを内蔵しており、プリプロセスしながらコンパイルを行う。
+  そのため、通常はプリプロセッサが単体で呼ばれることはない。(-E オプションを付けてgccを呼び出せば明示的にプリプロセスだけを実行させることはできる)
+</p>
+
+<p>
+  
+</p>
 
   <h3> リンクとはなにか </h3>
   <p> リンカがやっていることは、主に</p>
@@ -3578,10 +3589,6 @@ Disassembly of section .text:
 <p> link0.s の ret 命令と、link1.s の nop 命令が一個のa.outにまとめられていることを確認してほしい </p>
 
 
-</p>
-
-<p>
-
   <h3> ELF </h3>
   <h3> ldscript </h3>
   <h3> ローダ </h3>
@@ -3621,9 +3628,10 @@ Disassembly of section .text:
   <h3> ABI, Calling Convention (呼び出し規約) </h3>
  <h2> OS呼び出し </h2>
 
+ <h2> libc 自作 </h2>
+
  <h2> インタプリタ/コンパイラ </h2>
 
- <h2> おまけ : printf </h2>
  <h2> おまけ : shellcode,PIC,PIE,ASLR </h2>
 
 <h1> バス、メモリ、周辺IO、MMIO </h1>
