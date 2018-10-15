@@ -3430,7 +3430,158 @@ main:
     リンクについて知れば、C言語への理解も、もう一歩深まるだろう。
   </p>
 
+  <h3> コンパイラドライバ、libc </h3>
+<p> リンカの説明前にいくつか必要な説明をしておこう。 </p>
+
+<p> <a href="link/main.s"> link/main.s </a> </p>
+
+<pre>
+	.globl	main
+main:
+	ret
+</pre>
+
+<p>
+  このプログラムを gcc -static でコンパイルして、objdump -d で逆アセンブルを確認してほしい。
+  main 関数に含まれる命令は1個しかないのに、実際の実行ファイルには大量の命令が含まれていることが確認できるはずだ。
+  この大量の命令は、<em>libc</em>と呼ばれるライブラリから来る命令だ。
+</p>
+
+<p>
+  <em> libc </em> は、C言語の仕様を満たすために定義された関数、データを含むライブラリだ。
+  Cを書いたことがある人なら、printf、malloc などの関数を使ったことがあるだろう。
+  printf関数やmalloc関数はこの、libc の中に実装されている。
+  libc には、いくつか種類があって、x86_64 の Linux では、glibc(The GNU C Library) と呼ばれるlibcが使われている。
+  Windows では、msvcrt(Microsoft Visual Studio C Runtime か?)と呼ばれるlibcが使われることが多い。
+</p>
+
+<p>
+  ここで、"gcc" というコマンドが、.s を変換するだけでなく、libcとのリンクも行っている点に注意しよう。
+  ついでに、これまでも "gcc" というコマンドを使って、アセンブリ(.s) を実行ファイル(a.out) に変換していたことを思い出して欲しい。
+</p>
+
+<p>
+  そう、"gcc"というコマンドは、その名前に反して、*Cコンパイラではない*！
+  "gcc"は、<em>コンパイラドライバ</em>と呼ばれるプログラムで、
+  ソースコードファイルを実行ファイルに変換する時に必要なコマンドを良い感じに呼び出してくれるツールだ。
+</p>
+
+<p>
+  この部分の挙動は、仕様もなく、ドキュメンテーションもされておらず、OS、コンパイラ毎に挙動がマチマチで、
+  「良い感じに」処理してくれるとしか言いようのない動作をする。
+</p>
+
+<p>
+
+  Linux 上の gcc コンパイラドライバは、大体以下のような動作をする。(ちなみに、clang はこの動作をかなりの精度で再現する)
+</p>
+
+<ul>
+  <li> 引数に .c というファイルが渡された場合は、gcc に含まれる cc1 (これが本物のCコンパイラのコマンドだ) を呼び出して .c を .s に変換する </li>
+  <li> 引数に .cpp, .f, .java, など、各種ソースが渡された場合は、.c と同様に対応するコンパイラを呼び出して .s に変換する </li>
+  <li> 引数に -S が付いていない場合は、as (アセンブラ)を呼び出して cc1 などが出力した .s、引数に渡された.s を .o に変換する </li>
+  <li> 引数に -c が付いていない場合は、ld (リンカ)を呼び出して引数に渡されたソースを.oに変換したものと libc、-l オプションで渡された追加のライブラリをリンクする </li>
+</ul>
+
+<p>
+  ld(リンカ) は gcc から呼ばれるときは、collect2 というラッパーを経由して呼ばれる。(TODO : collect2 が必要な理由を調べる)
+</p>
+
+<p>
+  gcc に、-v を付けると、実際に背後でどういうコマンドが実行されるか確認できる。
+</p>
+
+<pre>
+$ gcc -v a.c
+Using built-in specs.
+COLLECT_GCC=gcc
+COLLECT_LTO_WRAPPER=/usr/lib/gcc/x86_64-linux-gnu/5/lto-wrapper
+Target: x86_64-linux-gnu
+Configured with: ../src/configure -v --with-pkgversion=&39;Ubuntu 5.4.0-6ubuntu1~16.04.9&39; --with-bugurl=file:///usr/share/doc/gcc-5/README.Bugs --enable-languages=c,ada,c++,java,go,d,fortran,objc,obj-c++ --prefix=/usr --program-suffix=-5 --enable-shared --enable-linker-build-id --libexecdir=/usr/lib --without-included-gettext --enable-threads=posix --libdir=/usr/lib --enable-nls --with-sysroot=/ --enable-clocale=gnu --enable-libstdcxx-debug --enable-libstdcxx-time=yes --with-default-libstdcxx-abi=new --enable-gnu-unique-object --disable-vtable-verify --enable-libmpx --enable-plugin --with-system-zlib --disable-browser-plugin --enable-java-awt=gtk --enable-gtk-cairo --with-java-home=/usr/lib/jvm/java-1.5.0-gcj-5-amd64/jre --enable-java-home --with-jvm-root-dir=/usr/lib/jvm/java-1.5.0-gcj-5-amd64 --with-jvm-jar-dir=/usr/lib/jvm-exports/java-1.5.0-gcj-5-amd64 --with-arch-directory=amd64 --with-ecj-jar=/usr/share/java/eclipse-ecj.jar --enable-objc-gc --enable-multiarch --disable-werror --with-arch-32=i686 --with-abi=m64 --with-multilib-list=m32,m64,mx32 --enable-multilib --with-tune=generic --enable-checking=release --build=x86_64-linux-gnu --host=x86_64-linux-gnu --target=x86_64-linux-gnu
+Thread model: posix
+gcc version 5.4.0 20160609 (Ubuntu 5.4.0-6ubuntu1~16.04.9)
+COLLECT_GCC_OPTIONS=&39;-v&39; &39;-mtune=generic&39; &39;-march=x86-64&39;
+ /usr/lib/gcc/x86_64-linux-gnu/5/cc1 -quiet -v -imultiarch x86_64-linux-gnu a.c -quiet -dumpbase a.c -mtune=generic -march=x86-64 -auxbase a -version -fstack-protector-strong -Wformat -Wformat-security -o /tmp/cc8AbPic.s
+GNU C11 (Ubuntu 5.4.0-6ubuntu1~16.04.9) version 5.4.0 20160609 (x86_64-linux-gnu)
+        compiled by GNU C version 5.4.0 20160609, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+ignoring nonexistent directory &quot;/usr/local/include/x86_64-linux-gnu&quot;
+ignoring nonexistent directory &quot;/usr/lib/gcc/x86_64-linux-gnu/5/../../../../x86_64-linux-gnu/include&quot;
+#include &quot;...&quot; search starts here:
+#include &lt;...&gt; search starts here:
+ /usr/lib/gcc/x86_64-linux-gnu/5/include
+ /usr/local/include
+ /usr/lib/gcc/x86_64-linux-gnu/5/include-fixed
+ /usr/include/x86_64-linux-gnu
+ /usr/include
+End of search list.
+GNU C11 (Ubuntu 5.4.0-6ubuntu1~16.04.9) version 5.4.0 20160609 (x86_64-linux-gnu)
+        compiled by GNU C version 5.4.0 20160609, GMP version 6.1.0, MPFR version 3.1.4, MPC version 1.0.3
+GGC heuristics: --param ggc-min-expand=100 --param ggc-min-heapsize=131072
+Compiler executable checksum: d079eab342c322d6be59e8628e10ae67
+COLLECT_GCC_OPTIONS=&39;-v&39; &39;-mtune=generic&39; &39;-march=x86-64&39;
+ as -v --64 -o /tmp/ccNgb4Ka.o /tmp/cc8AbPic.s
+GNU assembler version 2.26.1 (x86_64-linux-gnu) using BFD version (GNU Binutils for Ubuntu) 2.26.1
+COMPILER_PATH=/usr/lib/gcc/x86_64-linux-gnu/5/:/usr/lib/gcc/x86_64-linux-gnu/5/:/usr/lib/gcc/x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/5/:/usr/lib/gcc/x86_64-linux-gnu/
+LIBRARY_PATH=/usr/lib/gcc/x86_64-linux-gnu/5/:/usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu/:/usr/lib/gcc/x86_64-linux-gnu/5/../../../../lib/:/lib/x86_64-linux-gnu/:/lib/../lib/:/usr/lib/x86_64-linux-gnu/:/usr/lib/../lib/:/usr/lib/gcc/x86_64-linux-gnu/5/../../../:/lib/:/usr/lib/
+COLLECT_GCC_OPTIONS=&39;-v&39; &39;-mtune=generic&39; &39;-march=x86-64&39;
+ /usr/lib/gcc/x86_64-linux-gnu/5/collect2 -plugin /usr/lib/gcc/x86_64-linux-gnu/5/liblto_plugin.so -plugin-opt=/usr/lib/gcc/x86_64-linux-gnu/5/lto-wrapper -plugin-opt=-fresolution=/tmp/ccqaqkj9.res -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s -plugin-opt=-pass-through=-lc -plugin-opt=-pass-through=-lgcc -plugin-opt=-pass-through=-lgcc_s --sysroot=/ --build-id --eh-frame-hdr -m elf_x86_64 --hash-style=gnu --as-needed -dynamic-linker /lib64/ld-linux-x86-64.so.2 -z relro /usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu/crt1.o /usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu/crti.o /usr/lib/gcc/x86_64-linux-gnu/5/crtbegin.o -L/usr/lib/gcc/x86_64-linux-gnu/5 -L/usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu -L/usr/lib/gcc/x86_64-linux-gnu/5/../../../../lib -L/lib/x86_64-linux-gnu -L/lib/../lib -L/usr/lib/x86_64-linux-gnu -L/usr/lib/../lib -L/usr/lib/gcc/x86_64-linux-gnu/5/../../.. /tmp/ccNgb4Ka.o -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/x86_64-linux-gnu/5/crtend.o /usr/lib/gcc/x86_64-linux-gnu/5/../../../x86_64-linux-gnu/crtn.o
+</pre>
+
+<p> cc1, as, collect2 コマンドが呼ばれていることを確認しよう。 </p>
+
   <h3> リンクとはなにか </h3>
+  <p> リンカがやっていることは、主に</p>
+  <ul>
+    <li> オブジェクトをくっつけて一個にする </li>
+    <li> ラベルを解決する </li>
+  </ul>
+
+  <p> の二点だ。</p>
+
+<p> 次のふたつのファイルをリンクしてみよう。</p>
+
+<p>
+  <a href="link/link0.s"> link/link0.s </a>
+</p>
+<pre>
+	.globl	_start
+_start:
+	ret
+
+</pre>
+
+<p>
+  <a href="link/link1.s"> link/link1.s </a>
+</p>
+
+<pre>
+	nop
+</pre>
+
+<pre>
+$ as link0.s -o link0.o
+$ as link1.s -o link1.o
+$ ld link0.o link1.o
+$ objdump -d a.out
+
+a.out:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000400078 &lt;_start&gt;:
+  400078:	c3                   	retq   
+  400079:	90                   	nop
+</pre>
+
+<p> link0.s の ret 命令と、link1.s の nop 命令が一個のa.outにまとめられていることを確認してほしい </p>
+
+
+</p>
+
+<p>
+
   <h3> ELF </h3>
   <h3> ldscript </h3>
   <h3> ローダ </h3>
