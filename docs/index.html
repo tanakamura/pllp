@@ -137,7 +137,7 @@
 
 <p>好きなエディタを開いて、add.s というテキストファイルを作り、中に以下のように書く</p>
 
-<p> <a href="1/add.s"> 1/add.s </a> </p>
+<p> <a href="x8664_asm_language/add.s"> x8664_asm_language/add.s </a> </p>
 
 <pre>
 	.globl	main
@@ -193,7 +193,7 @@ Reading symbols from ./a.out...done.
 <pre>
 (gdb) start
 Temporary breakpoint 1 at 0x4004d6
-Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x00000000004004d6 in main ()
 (gdb) info registers
@@ -544,7 +544,7 @@ Type &quot;apropos word&quot; to search for commands related to &quot;word&quot;
 Reading symbols from a.out...(no debugging symbols found)...done.
 (gdb) start
 Temporary breakpoint 1 at 0x4004d6
-Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x00000000004004d6 in main ()
 (gdb) disassemble
@@ -618,7 +618,7 @@ Quit anyway? (y or n) y
 <pre>
 (gdb) start
 Temporary breakpoint 1 at 0x4004d6
-Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x00000000004004d6 in main ()
 (gdb) print $rax
@@ -651,7 +651,7 @@ $11 = 4196054
 
 <p> レジスタに値を設定する、mov 命令。 </p>
 
-<p> <a href="1/mov.s"> 1/mov.s </a> </p>
+<p> <a href="x8664_asm_language/mov.s"> x8664_asm_language/mov.s </a> </p>
 
 <pre>
 	.globl	main
@@ -664,7 +664,7 @@ main:
 <pre>
 (gdb) start
 Temporary breakpoint 1 at 0x4004d6
-Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x00000000004004d6 in main ()
 (gdb) disassemble
@@ -696,7 +696,7 @@ $2 = 1
 
 <p> 多くの演算は、レジスタ間で演算することが可能だ。 </p>
 
-<p> <a href="1/add2.s">1/add2.s</a> </p>
+<p> <a href="x8664_asm_language/add2.s">x8664_asm_language/add2.s</a> </p>
 
 <pre>
 	.globl	main
@@ -712,7 +712,7 @@ main:
 <pre> 
 (gdb) start
 Temporary breakpoint 1 at 0x4004d6
-Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x00000000004004d6 in main ()
 (gdb) stepi
@@ -744,7 +744,7 @@ $4 = 2
 
 <p> subで減算、imul で乗算、and,or,xor で bitwise and, or, xor だ。</p>
 
-<p> <a href="1/sub.s">1/sub.s</a> </p>
+<p> <a href="x8664_asm_language/sub.s">x8664_asm_language/sub.s</a> </p>
 
 <pre>
 	.globl	main
@@ -912,7 +912,7 @@ $11 = 0xa5
 
 <p> それでは、早速、このmov命令の挙動を見てみよう。 </p>
 
-<p> <a href="1/load.s"> 1/load.s </a> </p>
+<p> <a href="x8664_asm_language/load.s"> x8664_asm_language/load.s </a> </p>
 <pre>
 	.globl	main
 main:
@@ -945,7 +945,7 @@ Type "apropos word" to search for commands related to "word"...
 Reading symbols from a.out...(no debugging symbols found)...done.
 (gdb) start
 Temporary breakpoint 1 at 0x401106
-Starting program: /home/w0/src/pllp/docs/1/a.out 
+Starting program: /home/w0/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x0000000000401106 in main ()
 (gdb) stepi
@@ -1197,7 +1197,7 @@ There are 10 program headers, starting at offset 64
 
 <p> アドレス 0x800000 に 0x1740 byte 分のメモリを割り当てるように指示する情報が作られているのが確認できるはずだ。(0x1740byte という値はどこから来たんだ？これもあとで説明しよう！あとで説明することが多い！) </p>
 
-<p> <a href="1/load-v2.s"> 1/load-v2.s </a> </p>
+<p> <a href="x8664_asm_language/load-v2.s"> x8664_asm_language/load-v2.s </a> </p>
 <pre>
 	# gcc -static -no-pie -Tbss=0x800000 add.s のようにビルドすれば、0x800000 のアドレスに
 	# メインメモリがOSから割り当てられた状態でプログラムが起動する実行ファイルを作ることができる
@@ -1217,7 +1217,7 @@ main:
 The program being debugged has been started already.
 Start it from the beginning? (y or n) y
 Temporary breakpoint 2 at 0x401b55
-Starting program: /home/w0/src/pllp/docs/1/a.out 
+Starting program: /home/w0/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 2, 0x0000000000401b55 in main ()
 (gdb) stepi
@@ -1470,7 +1470,7 @@ $3 = 0x99
 
 <p> 符号拡張の挙動を見ておこう </p>
 
-<p> <a href="small-load-store.s"> small-load-store.s </a> </p>
+<p> <a href="x8664_asm_language/small-load-store.s"> x8664_asm_language/small-load-store.s </a> </p>
 
 <pre>
 	# gcc -static -no-pie -Tbss=0x800000 small-load-store.s でビルドすること
@@ -1490,7 +1490,7 @@ main:
 &lt;error: No registers.&gt;
 (gdb) start
 Temporary breakpoint 1 at 0x401106
-Starting program: /home/w0/src/pllp/docs/1/a.out 
+Starting program: /home/w0/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x0000000000401106 in main ()
 1: x/4i $pc
@@ -1588,7 +1588,7 @@ $2 = 0xffffffffffffffff
   x86_64 の AT&amp;T 記法では、レジスタ名を丸括弧'()'で囲むと、そのレジスタを使ったレジスタ間接参照になる。
 </p>
 
-<p> <a href="1/register-indirect.s"> 1/register-indirect.s </a> </p>
+<p> <a href="x8664_asm_language/register-indirect.s"> x8664_asm_language/register-indirect.s </a> </p>
 
 <pre>
 	# gcc -static -no-pie -Tbss=0x800000 load-v2.s のようにビルドすれば、0x800000 のアドレスに
@@ -1613,7 +1613,7 @@ main:
 &lt;error: No registers.&gt;
 (gdb) start
 Temporary breakpoint 1 at 0x401106
-Starting program: /home/w0/src/pllp/docs/1/a.out 
+Starting program: /home/w0/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x0000000000401106 in main ()
 1: x/4i $pc
@@ -1663,7 +1663,7 @@ $2 = 0x99
 
 <p> (TODO:"算術演算"の説明を書いてない) </p>
 
-<p> <a href="1/address-arith.s"> 1/address-arith.s </a> </p>
+<p> <a href="x8664_asm_language/address-arith.s"> x8664_asm_language/address-arith.s </a> </p>
 
 <pre>
 	# gcc -static -no-pie -Tbss=0x800000 address-arith.s のようにビルドする
@@ -1696,7 +1696,7 @@ main:
 <pre>
 (gdb) start
 Temporary breakpoint 1 at 0x401106
-Starting program: /home/w0/src/pllp/docs/1/a.out 
+Starting program: /home/w0/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x0000000000401106 in main ()
 (gdb) display /4xb 0x800000
@@ -2065,7 +2065,7 @@ Temporary breakpoint 1, 0x0000000000401106 in main ()
 
 <p> まずは、CPUの命令は単なるバイト列でしかないことを確認しておこう </p>
 
-<p> <a href="1/self-modified.s"> 1/self-modified.s </a> </p>
+<p> <a href="x8664_asm_language/self-modified.s"> x8664_asm_language/self-modified.s </a> </p>
 
 <pre>
 	.section "axw", "axw"
@@ -2087,7 +2087,7 @@ mov_inst:
 <pre>
 (gdb) start
 Temporary breakpoint 1 at 0x404028
-Starting program: /home/w0/src/pllp/docs/1/a.out 
+Starting program: /home/w0/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x0000000000404028 in main ()
 (gdb) display /x5i $pc
@@ -2428,7 +2428,7 @@ mov_inst:                       # 書きかえたい命令の位置にラベル�
   次の命令は、そこから実行される。
 </p>
 
-<p> <a href="1/branch.s"> 1/branch.s </a> </p>
+<p> <a href="x8664_asm_language/branch.s"> x8664_asm_language/branch.s </a> </p>
 
 <pre> 
 	.globl	main
@@ -2455,7 +2455,7 @@ loop:
 3: $rax = &lt;error: No registers.&gt;
 (gdb) start
 Temporary breakpoint 1 at 0x401106
-Starting program: /home/w0/src/pllp/docs/1/a.out 
+Starting program: /home/w0/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x0000000000401106 in main ()
 1: x/i $pc
@@ -2504,7 +2504,7 @@ Temporary breakpoint 1, 0x0000000000401106 in main ()
   汎用レジスタが指すアドレスへの分岐を、<em>間接分岐 (indirect branch)</em> と呼ぶ。
 </p>
 
-<p> <a href="1/indirect-branch.s"> 1/indirect-branch.s </a> </p>
+<p> <a href="x8664_asm_language/indirect-branch.s"> x8664_asm_language/indirect-branch.s </a> </p>
 
 <pre>
 	.globl	main
@@ -2577,7 +2577,7 @@ loop:
   これをもう少し発展させよう。
 </p>
 
-<p> <a href="1/sum.s"> 1/sum.s </a> </p>
+<p> <a href="x8664_asm_language/sum.s"> x8664_asm_language/sum.s </a> </p>
 
 <pre>
 	.globl main
@@ -2604,7 +2604,7 @@ end:
 <pre>
 (gdb) start
 Temporary breakpoint 1 at 0x401106
-Starting program: /home/w0/src/pllp/docs/1/a.out 
+Starting program: /home/w0/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x0000000000401106 in main ()
 (gdb) break end
@@ -2691,7 +2691,7 @@ end:
 
 <p> と、書いていた。x86_64 の eflags レジスタは、このフラグレジスタに該当するレジスタで、演算結果の追加情報を格納する (MIPSのようにフラグレジスタに該当するレジスタが無いアーキテクチャもある) </p>
 
-<p> <a href="1/status0.s"> 1/status0.s  </a> </p>
+<p> <a href="x8664_asm_language/status0.s"> x8664_asm_language/status0.s  </a> </p>
 
 <pre>
 	.globl	main
@@ -2704,7 +2704,7 @@ main:
 <pre>
 (gdb) start
 Temporary breakpoint 1 at 0x4004d6
-Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x00000000004004d6 in main ()
 (gdb) stepi
@@ -2766,7 +2766,7 @@ $3 = [ CF PF AF ZF IF ]
 
 <p> 次に紹介する分岐命令は、関数呼び出し命令だ。 <p>
 
-<p> <a href="1/call.s"> 1/call.s </a> </p>
+<p> <a href="x8664_asm_language/call.s"> x8664_asm_language/call.s </a> </p>
 
 <pre>
 	.globl main
@@ -2803,7 +2803,7 @@ main:
 &lt;error: No registers.&gt;
 (gdb) start
 Temporary breakpoint 1 at 0x4009bf
-Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x00000000004009bf in main ()
 1: x/4xg $rsp
@@ -3008,7 +3008,7 @@ Temporary breakpoint 1, 0x00000000004009bf in main ()
 <pre>
 (gdb) start
 Temporary breakpoint 1 at 0x4004db
-Starting program: /mnt/d/wsl/src/pllp/docs/1/a.out 
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
 
 Temporary breakpoint 1, 0x00000000004004db in main ()
 (gdb) p /x $rsp
@@ -3250,7 +3250,7 @@ $ ulimit -s
   オペランドを取らない命令で、1byte でよく使うのは、nop、ret などがある。
 </p>
 
-<p> <a href="2/one_byte.s"> 2/one_byte.s </a> </p>
+<p> <a href="x8664_machine_language/one_byte.s"> x8664_machine_language/one_byte.s </a> </p>
 
 <pre>
 	.globl main
@@ -3293,7 +3293,7 @@ one_byte.o:     ファイル形式 elf64-x86-64
   次に即値をオペランドに取る命令だ。即値mov命令がこれに該当する。また、x86_64 では、RAX レジスタは他のレジスタより優遇されていて、算術命令のうち、rax をオペランド取る命令は、1byte命令になる。
 </p>
 
-<p> <a href="2/one_byte_imm.s"> 2/one_byte_imm.s </a> </p>
+<p> <a href="x8664_machine_language/one_byte_imm.s"> x8664_machine_language/one_byte_imm.s </a> </p>
 
 <pre>
 	.globl main
@@ -3335,7 +3335,7 @@ main:
   64bit 命令を使うときは、命令の前に REX prefix を付けて、REX prefix 中の W ビットを 1にする。REX prefix については、あとで詳しく解説する。とりあえずここで使うのは、0x48 だ。
 </p>
 
-<p> <a href="2/one_byte_imm_size.s"> 2/one_byte_imm_size.s </a> </p>
+<p> <a href="x8664_machine_language/one_byte_imm_size.s"> x8664_machine_language/one_byte_imm_size.s </a> </p>
 
 <pre>
 	.globl main
@@ -3487,12 +3487,13 @@ main:
 <ul>
   <li> 引数に .c というファイルが渡された場合は、gcc に含まれる cc1 (これが本物のCコンパイラのコマンドだ) を呼び出して .c を .s に変換する </li>
   <li> 引数に .cpp, .f, .java, など、各種ソースが渡された場合は、.c と同様に対応するコンパイラを呼び出して .s に変換する </li>
-  <li> 引数に -S が付いていない場合は、as (アセンブラ)を呼び出して cc1 などが出力した .s、引数に渡された.s を .o に変換する </li>
-  <li> 引数に -c が付いていない場合は、ld (リンカ)を呼び出して引数に渡されたソースを.oに変換したものと libc、-l オプションで渡された追加のライブラリをリンクする </li>
+  <li> 引数に -S が付いていない場合は、as (アセンブラ)を呼び出して cc1 などが出力した .s、引数に渡された.s を .o に変換する (-S が付けられた場合は、.oに変換せず、.s を出力する) </li>
+  <li> 引数に -c が付いていない場合は、ld (リンカ)を呼び出して引数に渡されたソースを.oに変換したものと libc、-l オプションで渡された追加のライブラリをリンクする (-c が付けられた場合は、リンクしないで、.o を出力する) </li>
 </ul>
 
 <p>
-  ld(リンカ) は gcc から呼ばれるときは、collect2 というラッパーを経由して呼ばれる。(TODO : collect2 が必要な理由を調べる)
+  ld(リンカ) は gcc から呼ばれるときは、collect2 というラッパーを経由して呼ばれるが、
+  現代ではLTO(Link Time Optimization) を使わない場合はcollect2 = ld と解釈してもらって構わない。(TODO : collect2 が必要な理由を調べる)。
 </p>
 
 <p>
