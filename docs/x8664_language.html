@@ -68,7 +68,7 @@
 </p>
 
 <p>
-  <img src="opcode_table3.png">
+  <img src="opcode_table2.png">
 </p>
 
 <p> このふたつのテーブルは、命令バイト列の1byte目が、どの命令と対応するのかが書かれている。</p>
@@ -84,7 +84,7 @@
 
 <p>
   まずは、簡単なオペランドを取らない命令から見ていこう。
-  オペランドを取らない命令で、1byte でよく使うのは、nop、ret などがある。
+  オペランドを取らない命令でよく使うのは、nop、ret などがある。
 </p>
 
 <p> <a href="x8664_machine_language/one_byte.s"> x8664_machine_language/one_byte.s </a> </p>
@@ -127,7 +127,7 @@ one_byte.o:     ファイル形式 elf64-x86-64
 </p>
 
 <p>
-  次に即値をオペランドに取る命令だ。即値mov命令がこれに該当する。また、x86_64 では、RAX レジスタは他のレジスタより優遇されていて、算術命令のうち、rax をオペランド取る命令は、1byte命令になる。
+  次に即値をオペランドに取る命令だ。即値mov命令がこれに該当する。また、x86_64 では、rax レジスタは他のレジスタより若干優遇されていて、算術命令のうち、rax をオペランド取る命令は、専用の命令になる。
 </p>
 
 <p> <a href="x8664_machine_language/one_byte_imm.s"> x8664_machine_language/one_byte_imm.s </a> </p>
@@ -169,7 +169,7 @@ main:
 
 <p> 
   16bit 命令を使うときは、命令の前に Operand size prefix(0x66) を付ける。
-  64bit 命令を使うときは、命令の前に REX prefix を付けて、REX prefix 中の W ビットを 1にする。REX prefix については、あとで詳しく解説する。とりあえずここで使うのは、0x48 だ。
+  64bit 命令を使うときは、命令の前に REX prefix を付けて、REX prefix 中の W ビットを 1にする。REX prefix については、あとで詳しく解説する。とりあえずここで使うのは、W ビットを1にした 0x48 だ。
 </p>
 
 <p> <a href="x8664_machine_language/one_byte_imm_size.s"> x8664_machine_language/one_byte_imm_size.s </a> </p>
@@ -208,6 +208,184 @@ main:
   説明を簡単にするために、ここまでは使ってこなかったが、add命令などは、レジスタを経由しなくともメモリ上の値を直接操作することができる。
 </p>
 
+<p> <a href="x8664_machine_language/several_add.s"> x8664_machine_language/several_add.s </a> </p>
+
+<pre>
+$ gcc -c several_add.s 
+$ objdump -d several_add.o 
+
+several_add.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 &lt;main&gt;:
+   0:	01 c1                	add    %eax,%ecx
+   2:	01 04 25 00 00 00 00 	add    %eax,0x0
+   9:	01 00                	add    %eax,(%rax)
+   b:	01 04 00             	add    %eax,(%rax,%rax,1)
+   e:	01 44 00 01          	add    %eax,0x1(%rax,%rax,1)
+  12:	01 84 00 00 80 00 00 	add    %eax,0x8000(%rax,%rax,1)
+  19:	c3                   	retq   
+</pre>
+
+<p> どの add も最初の1byte目は 0x01 になっていることを確認しよう。</p>
+
+<p>
+  x86_64 では多くの命令は、1byte のオペコードのあとに、<em> ModR/M </em> というオペランドを指定する1byteが付く。
+  この ModR/M には、オペランドの種類もエンコードされていて、種類によっては、さらに後ろに種類に応じたバイト列が付く。
+</p>
+
+<p>
+  ModR/M の情報は、以下のように 8bit 中にエンコードされる。
+</p>
+
+<table>
+  <tr> <td> 0 </td> <td> 1 </td> <td> 2 </td> <td> 3 </td> <td> 4 </td> <td> 5 </td> <td> 6 </td> <td> 7 </td> </tr>
+  <tr> <td colspan="3"> r/m </td> <td colspan="3"> reg </td> <td colspan="3"> mod</td> </tr>
+</table>
+
+<p>
+  まず、reg フィールド。
+  x86_64ではModR/Mを使ってオペランドを2個指定する場合でも、どちらか1個はレジスタにしなければならない。
+  この1個のレジスタを示す 3bit が reg フィールドだ。
+  3bitの対応は以下のようになる。
+</p>
+
+<table>
+  <tr> <td> 0  </td>  <td> 1 </td>  <td> 2  </td> <td> 3  </td> <td> 4 </td>  <td> 5 </td>  <td> 6 </td>  <td> 7 </td> </tr>
+  <tr> <td> ax </td>  <td> cx </td> <td> dx </td> <td> bx </td> <td> sp </td> <td> bp </td> <td> si </td> <td> di </td> </tr>
+</table>
+
+<p> 3bit しか無いので、8個のレジスタしか指定できない。
+  これは、x86 が32bitの時代に、レジスタが8個しかなかったころの名残で、
+  あとから拡張された r8〜r15 はそのままでは指定できない。
+  r8〜r15 までのレジスタを使う方法については、REXプレフィクスのところで説明する。
+</p>
+
+<p> あと、レジスタの順序が A,C,D,B となっているが、これはタイポではなくて、実際このとおりにエンコードされる。</p>
+
+<p> <a href="x8664_machine_language/modrm_reg.s"> x8664_machine_language/modrm_reg.s </a> </p>
+
+<pre>
+	.globl	main
+main:
+	add %eax, (%rax)
+	add %ecx, (%rax)
+	add %edx, (%rax)
+	add %ebx, (%rax)
+
+	add %esp, (%rax)
+	add %ebp, (%rax)
+	add %esi, (%rax)
+	add %edi, (%rax)
+
+	ret
+</pre>
+
+<pre>
+$ gcc -c modrm_reg.s 
+$ objdump -d modrm_reg.o 
+
+modrm_reg.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 &lt;main&gt;:
+   0:	01 00                	add    %eax,(%rax)
+   2:	01 08                	add    %ecx,(%rax)
+   4:	01 10                	add    %edx,(%rax)
+   6:	01 18                	add    %ebx,(%rax)
+   8:	01 20                	add    %esp,(%rax)
+   a:	01 28                	add    %ebp,(%rax)
+   c:	01 30                	add    %esi,(%rax)
+   e:	01 38                	add    %edi,(%rax)
+  10:	c3                   	retq   
+
+</pre>
+
+<p> reg ビットが変化していることを確認しよう。</p>
+
+<p> 続いて、mod フィールド。mod フィールドは、r/m フィールドの種類を決める。</p>
+
+<p> まずは一番簡単な、mod = 0b11 の場合だ。この場合、r/m フィールドの3bit は、レジスタを示す3bitになる。エンコード方法は regフィールドと同じだ。 </p>
+
+<p> <a href="x8664_machine_language/modrm_mod11.s"> x8664_machine_language/modrm_mod11.s </a> </p>
+
+<pre>
+	.globl	main
+main:
+	add %eax, %eax
+	add %eax, %ecx
+	add %eax, %edx
+	add %eax, %ebx
+
+	add %eax, %esp
+	add %eax, %ebp
+	add %eax, %esi
+	add %eax, %edi
+
+	.byte	0x01		# add %r32, r/m32
+	.byte	0xc0		# mod=11, reg=00, r/m=00
+
+	.byte	0x03		# add r/m32, %r32
+	.byte	0xc0		# mod=11, reg=00, r/m=00
+
+	ret
+</pre>
+
+<pre>
+$ gcc -c modrm_mod11.s
+$ objdump -d modrm_mod11.o 
+
+modrm_mod11.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 &lt;main&gt;:
+   0:	01 c0                	add    %eax,%eax
+   2:	01 c1                	add    %eax,%ecx
+   4:	01 c2                	add    %eax,%edx
+   6:	01 c3                	add    %eax,%ebx
+   8:	01 c4                	add    %eax,%esp
+   a:	01 c5                	add    %eax,%ebp
+   c:	01 c6                	add    %eax,%esi
+   e:	01 c7                	add    %eax,%edi
+  10:	01 c0                	add    %eax,%eax
+  12:	03 c0                	add    %eax,%eax
+  14:	c3                   	retq   
+</pre>
+
+<p> mod=0b11 の場合、r/m フィールドでレジスタを指定していることを確認しよう。 </p>
+
+<p> ついでに、最後の .byte と書かれた部分も見てほしい。 </p>
+
+<p>
+  .byte は、アセンブラ用の<em>疑似命令(pseudo instruction)</em>と呼ばれる文のひとつで、
+  オペランドで指定した1byteを直接出力しろとアセンブラに対して指示する文だ。
+</p>
+
+<p> 逆アセンブルを見ると、.byte で指定した 4byte (0x01, 0xc0, 0x03, 0xc0) が出力されている。 </p>
+
+<pre>
+  10:	01 c0                	add    %eax,%eax
+  12:	03 c0                	add    %eax,%eax
+</pre>
+
+<p> 見てほしいのは、この二つの命令は、機械語の命令は変わっているが、アセンブリ上でのオペコード、オペランドは全く一緒になっている点だ。 </p>
+
+<p> x86_64 では、整数二項算術演算は、operand0, operand1 どちらもメモリオペランドが取れるように、二種類の命令が定義してある。 </p>
+
+<p> 0x01 の add 命令は、operand0 がメモリオペランドになれて、modr/m の mod フィールドは、operand0 の種類を指定できる。 </p>
+<p> 0x03 の add 命令は、operand1 がメモリオペランドになれて、modr/m の mod フィールドは、operand1 の種類を指定できる。 </p>
+
+<p> mod=0b11 の場合、レジスタオペランドになるので、0x01 と 0x03 はどちらもレジスタオペランドをふたつ取る add 命令になり、全く同じ意味になる。</p>
+
+<p> 次にmod=0b00,0b01,0b10 の場合だ。 </p>
+
+<p id="kokomade"> (ここまで書いた )</p>
 
 <h3> REXプレフィクス </h3>
 
