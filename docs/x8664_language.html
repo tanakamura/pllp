@@ -376,14 +376,114 @@ Disassembly of section .text:
 
 <p> 見てほしいのは、この二つの命令は、機械語の命令は変わっているが、アセンブリ上でのオペコード、オペランドは全く一緒になっている点だ。 </p>
 
-<p> x86_64 では、整数二項算術演算は、operand0, operand1 どちらもメモリオペランドが取れるように、二種類の命令が定義してある。 </p>
+<p> x86_64 では、整数二項算術演算は、operand0, operand1 どちらかがメモリオペランドが取れるように、二種類の命令が定義してある。 </p>
 
 <p> 0x01 の add 命令は、operand0 がメモリオペランドになれて、modr/m の mod フィールドは、operand0 の種類を指定できる。 </p>
 <p> 0x03 の add 命令は、operand1 がメモリオペランドになれて、modr/m の mod フィールドは、operand1 の種類を指定できる。 </p>
 
 <p> mod=0b11 の場合、レジスタオペランドになるので、0x01 と 0x03 はどちらもレジスタオペランドをふたつ取る add 命令になり、全く同じ意味になる。</p>
 
-<p> 次にmod=0b00,0b01,0b10 の場合だ。 </p>
+<p>
+  次にmod=0b00,0b01,0b10 の場合だ。この場合はレジスタ間接参照するメモリオペランドをとり、
+  r/m フィールドの3bitで、間接参照に使うレジスタを指定する。
+  mod=0b00,0b01,0b10の場合で、ディスプレースメントのビット数が変わる。
+</p>
+
+<p>
+  ディスプレースメントの説明をしてない(TODO:アセンブリ編に移動したほうがいい)。
+  <em> ディスプレースメント(displaement) </em> は、命令のメモリオペランドに付くオフセットのことだ。
+  レジスタ間接参照する場合、レジスタに含まれている値から、少しだけオフセットを付けてアクセスしたい場合はよくある。
+</p>
+<p>
+  現代の多くのCPUでは、レジスタ間接参照する時に、レジスタに含まれる整数値にいくらかオフセットを付けることができる。例えば、x86_64だと
+</p>
+
+<pre>
+  mov $8, %rax
+  mov 16(%rax), %rcx
+</pre>
+
+<p>
+  と書くと、rax の値に +16 した値(この場合24)をアドレスとして使ってロードすることができる。このオフセットの値を
+  <em> ディスプレースメント </em> と呼ぶ。
+</p>
+
+<p>
+  命令のバイト数は短いほどよいので、できれば短くしたい。
+  x86_64 では、ディスプレースメントの値が小さい場合は、命令長が短くなるように設計されていて、
+  mod の値によってディスプレースメントのビット幅が変わる。
+</p>
+
+<ul>
+  <li> mod=0b00 の場合、ディスプレースメント </li>
+  <li> mod=0b01 の場合、8bit ディスプレースメント </li>
+  <li> mod=0b10 の場合、32bit ディスプレースメント </li>
+</ul>
+
+<p> と、なる。実際に見ていこう。 </p>
+
+<p> <a href="x8664_machine_language/modrm_mod_disp.s"> x8664_machine_language/modrm_mod_disp.s </a> </p>
+
+<pre>
+	.globl	main
+main:
+	mov (%rax), %ecx 	# mod=0b00, r/m=0b000(ax), disp=0(0bit)
+	mov 1(%rax), %ecx	# mod=0b01, r/m=0b000(ax), disp=1(8bit)
+	mov 256(%rax), %ecx	# mod=0b10, r/m=0b000(ax), disp=256(32bit)
+
+	ret
+</pre>
+
+<pre>
+$ gcc -c modrm_mod_disp.s
+$ objdump -d modrm_mod_disp.o
+
+modrm_mod_disp.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 &lt;main&gt;:
+   0:	8b 08                	mov    (%rax),%ecx
+   2:	8b 48 01             	mov    0x1(%rax),%ecx
+   5:	8b 88 00 01 00 00    	mov    0x100(%rax),%ecx
+   b:	c3                   	retq   
+</pre>
+
+<p> ディスプレースメントの値のサイズによって、ModR/M の mod の値が変化しているのを確認しよう。 </p>
+
+<p> ただし、mod=0b00,0b01,0b10 の場合は、例外があり、r/m の 3bit でrsp(0b100),rbp(0b101)を指定できないことがある。</p>
+
+<p>
+  まず、mod=0b00 で、r/m=0b101 の場合、この場合は、他と同じルールに従うなら、オフセット無しのrbp間接参照となるが、
+  例外扱いされて、レジスタを使わない32bitアドレス直接参照になる。
+</p>
+
+<p> <a href="x8664_machine_language/modrm_mod00_rm101.s"> x8664_machine_language/modrm_mod00_rm101.s </a> </p>
+
+<pre>
+	.globl	main
+main:
+	mov (%rbp), %ecx 	# mod=0b01,r/m=0b101, disp=0(8bit)
+	mov 1(%rbp), %ecx	# mod=0b01,r/m=0b101, disp=1(8bit)
+	mov 256(%rbp), %ecx	# mod=0b10,r/m=0b101, disp=256(32bit)
+
+	## 0x80000からロード
+	mov 0x80000, %ecx  	# mod=0b00,r/m=0b101
+
+	ret
+</pre>
+
+<pre>
+0000000000000000 &lt;main&gt;:
+   0:	8b 4d 00             	mov    0x0(%rbp),%ecx
+   3:	8b 4d 01             	mov    0x1(%rbp),%ecx
+   6:	8b 8d 00 01 00 00    	mov    0x100(%rbp),%ecx
+   c:	8b 0c 25 00 00 08 00 	mov    0x80000,%ecx
+  13:	c3                   	retq   
+</pre>
+
+
 
 <p id="kokomade"> (ここまで書いた )</p>
 
