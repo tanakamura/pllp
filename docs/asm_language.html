@@ -1905,6 +1905,79 @@ Temporary breakpoint 1, 0x0000000000401106 in main ()
 
 
 <p>
+  もうひとつ、ディスプレースメントの説明をしておこう。
+  <em> ディスプレースメント(displacement) </em> は、命令のメモリオペランドに付くオフセットのことだ。
+  レジスタ間接参照する場合、レジスタに含まれている値から、少しだけオフセットを付けてアクセスしたい場合はよくある。
+</p>
+
+<p>
+  現代の多くのCPUでは、レジスタ間接参照する時に、レジスタに含まれる整数値にいくらかオフセットを付けることができる。例えば、x86_64だと
+</p>
+
+<pre>
+  mov $8, %rax
+  mov 16(%rax), %rcx
+</pre>
+
+<p>
+  と書くと、rax の値に +16 した値(この場合24)をアドレスとして使ってロードすることができる。このオフセットの値を
+  <em> ディスプレースメント </em> と呼ぶ。
+</p>
+
+<p> x86_64 では、レジスタ間接参照は他のCPUよりも強力で、レジスタ加算、符号付き32bitディスプレースメント加算、2,4,8倍のレジスタのスケールができる。</p>
+
+<p> <a href="x8664_asm_language/x86_mem_operand.s"> x8664_asm_language/x86_mem_operand.s </a> </p>
+
+<pre>
+	# gcc -static -no-pie -Tbss=0x800000 x86_mem_operand.s のようにビルドすれば、0x800000 のアドレスに
+	# メインメモリがOSから割り当てられた状態でプログラムが起動する実行ファイルを作ることができる
+
+	.globl	main
+main:
+	mov $0x99, %rax
+	mov %rax, 0x800000 # アドレス0x800000で識別される領域に、raxの値(99)を保存する
+
+	mov $0x200000, %rax
+	mov $0x100000, %rcx
+	mov 0x400000(%rax,%rcx,2), %r8 #0x400000 + 0x20000(rax) + 0x100000(rcx)*2 = 0x800000 からロード
+
+	ret
+</pre>
+
+<pre>
+(gdb) start
+Temporary breakpoint 1 at 0x4009de
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
+
+Temporary breakpoint 1, 0x00000000004009de in main ()
+(gdb) stepi 4
+0x00000000004009fb in main ()
+(gdb) disassemble
+Dump of assembler code for function main:
+   0x00000000004009de &lt;+0&gt;:	mov    $0x99,%rax
+   0x00000000004009e5 &lt;+7&gt;:	mov    %rax,0x800000
+   0x00000000004009ed &lt;+15&gt;:	mov    $0x200000,%rax
+   0x00000000004009f4 &lt;+22&gt;:	mov    $0x100000,%rcx
+=&gt; 0x00000000004009fb &lt;+29&gt;:	mov    0x400000(%rax,%rcx,2),%r8
+   0x0000000000400a03 &lt;+37&gt;:	retq   
+   0x0000000000400a04 &lt;+38&gt;:	nopw   %cs:0x0(%rax,%rax,1)
+   0x0000000000400a0e &lt;+48&gt;:	xchg   %ax,%ax
+End of assembler dump.
+(gdb) stepi 
+0x0000000000400a03 in main ()
+(gdb) p /x $r8
+$2 = 0x99
+(gdb) 
+</pre>
+
+<p>
+  add 命令は、一回しか加算できないのに対して、x86_64 のメモリオペランドのアドレス加算は、
+  レジスタ + レジスタ + ディスプレースメントの二回加算ができる。
+  命令単位で見ると加算命令よりもロード命令のほうが加算性能が高いのが x86_64 だ。
+  (実際の性能は、色々な事情があってadd命令のほうが性能高い場合もよくある)
+</p>
+
+<p>
   ロードストアの説明はこのあたりにしておこう。
 </p>
 
