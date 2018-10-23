@@ -471,15 +471,109 @@ main:
   <em>SIB</em> という1バイトの情報が付加される。
 </p>
 
+<p> x86_64 では、メモリオペランドで、レジスタのスケール、レジスタ値の加算、ディスプレースメント値の加算ができる。 </p>
+<pre>
+    mov 64(%rax,%rcx,4), %rdx  # rax + rcx*4 + 64 からロード
+</pre>
+
+<p> この2個のレジスタ、スケール量を格納するのが、SIB バイトだ。</p>
+
+<p> SIB バイトのビットの内訳は以下のようになる。
+
+<table>
+  <tr> <td> 0 </td> <td> 1 </td> <td> 2 </td> <td> 3 </td> <td> 4 </td> <td> 5 </td> <td> 6 </td> <td> 7 </td> </tr>
+  <tr> <td colspan="3"> base </td> <td colspan="3"> index </td> <td colspan="3"> scale </td> </tr>
+</table>
+
+<ul>
+  <li> base : スケールしないほうのレジスタ </li>
+  <li> index : スケールするほうのレジスタ </li>
+  <li> scale : スケール量(シフト量、0b00=x1, 0b01=x2, 0b10=x4, 0b11=x8) </li>
+</ul>
+
+<p> と、なる。</p>
+
+<p> このSIBバイトに続いて、mod で示されるディスプレースメントが続く。ディスプレースメントの解釈は、SIBが無い場合と同じだ。つまり、</p>
+<ul>
+  <li> mod=0b00 の場合、ディスプレースメント </li>
+  <li> mod=0b01 の場合、8bit ディスプレースメント </li>
+  <li> mod=0b10 の場合、32bit ディスプレースメント </li>
+</ul>
+
+<p> が、SIBバイトの後ろに続く。 </p>
+
+<p> <a href="x8664_machine_language/modrm_sib.s"> x8664_machine_language/modrm_sib.s </a> </p>
+
+<pre>
+	.globl	main
+main:
+	## ModR/M=0b0001_0100 : mod=0b00 (dispなし), reg=0b010(edx), r/m=0b100(SIB)
+	## SIB   =0b0000_1000 : scale=0b00(x1), index=0b001(rcx), base=0b000(rax)
+	mov	(%rax,%rcx), %edx
+
+	## ModR/M=0b0001_0100 : mod=0b00 (dispなし), reg=0b010(edx), r/m=0b100(SIB)
+	## SIB   =0b0100_1000 : scale=0b01(x2), index=0b001(rcx), base=0b000(rax)
+	mov	(%rax,%rcx,2), %edx
+
+	## ModR/M=0b0101_0100 : mod=0b01 (8bit disp), reg=0b010(edx), r/m=0b100(SIB)
+	## SIB   =0b0000_1000 : scale=0b00(x1), index=0b001(rcx), base=0b000(rax)
+	## disp  =0x1
+	mov	1(%rax,%rcx), %edx
+
+	ret
+</pre>
+
+
+<p> SIB の index でも rsp(0b100) は例外扱いされていて、index を 0b100 にした場合、index は"無し"になる。</p>
+
+<p> <a href="x8664_machine_language/modrm_sib_rsp.s"> x8664_machine_language/modrm_sib_rsp.s </a> </p>
+
+<pre>
+	.globl	main
+main:
+	## ModR/M=0b0001_0100 : mod=0b00 (dispなし), reg=0b010(edx), r/m=0b100(SIB)
+	## SIB   =0b0010_0100 : scale=0b00(x1), index=0b100(なし), base=0b100(rsp)
+	mov	(%rsp), %edx
+	ret
+</pre>
+
+<pre>
+0000000000000000 &lt;main&gt;:
+   0:	8b 14 08             	mov    (%rax,%rcx,1),%edx
+   3:	8b 54 08 01          	mov    0x1(%rax,%rcx,1),%edx
+   7:	8b 14 48             	mov    (%rax,%rcx,2),%edx
+   a:	c3                   	retq   
+</pre>
+
+
+<pre>
+0000000000000000 &lt;main&gt;:
+   0:	8b 14 24             	mov    (%rsp),%edx
+   3:	c3                   	retq   
+</pre>
+
+<p>
+  これは、ModR/M の R/M フィールドで、rsp を指定できないので別に指定方法が必要だったのと、
+  rsp は基本的にスタックを指しているので、x2 などのスケールを付けることはまずありえない、
+  という二点から、このような対応がされていると思われる。
+</p>
+
+<h3> REXプレフィクス </h3>
+
+<p> 続いて<em>REXプレフィクス</em> について説明しよう。 </p>
+<p> x86 は、32bit から 64bit に拡張されるときに、レジスタ幅が64bitになり、さらにレジスタ数が8個から倍の16個に増えた。</p>
+<p> この拡張された部分を
 
 <p id="kokomade"> (ここまで書いた )</p>
 
-<h3> REXプレフィクス </h3>
+
 
 <p>
   x86_64は、32bit x86命令セットとそれなりの互換性を持たせながら、64bitに拡張し、レジスタ数も増やすという無茶なノルマを達成するために、
   REX プレフィクスというプレフィクスが増えた。
 </p>
+
+<h3> SSEなどの拡張命令 </h3>
 
 <h3> VEX, EVEX プレフィクス </h3>
 
