@@ -2,13 +2,8 @@
 <head>
   <meta charset="utf-8"/>
   <title> リンカ </title>
+  <link rel="stylesheet" type="text/css" href="style.css">
 </head>
-<style>
-  pre { border: solid 1px }
-  em { font-weight: bold; color: red }
-  table,td,th { border: solid 1px; }
-  #kokomade { color: green; }
-</style>
 
 <body>
 
@@ -603,8 +598,136 @@ Disassembly of section .text:
 </p>
 
 <p>
-  
+  これまで何度か使ってきたreadelfを使うと、シンボル、リロケーションの情報を見ることができる。
+  "-s" で、シンボル情報を表示、"-r" で、リロケーション情報を表示だ。
 </p>
+
+<p> さきほどの <a href="link/link_label1.s"> link/link_label1.s </a> をアセンブルしたlink_label1.o を見てみよう。 </p>
+
+<pre>
+$ readelf -r link_label1.o
+
+Relocation section &39;.rela.text&39; at offset 0xe8 contains 1 entries:
+  Offset          Info           Type           Sym. Value    Sym. Name + Addend
+000000000003  00050000000b R_X86_64_32S      0000000000000000 _start + 0
+</pre>
+
+<pre>
+$ readelf -s link_label1.o
+
+Symbol table &39;.symtab&39; contains 6 entries:
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 0000000000000000     0 SECTION LOCAL  DEFAULT    1 
+     2: 0000000000000000     0 SECTION LOCAL  DEFAULT    3 
+     3: 0000000000000000     0 SECTION LOCAL  DEFAULT    4 
+     4: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT    1 label0
+     5: 0000000000000000     0 NOTYPE  GLOBAL DEFAULT  UND _start
+$
+ </pre>
+
+<p>
+  "-r" で出したものがリロケーション、"-s" で出したものがシンボルだ。
+</p>
+
+<p>
+  リロケーションから詳しく見ていこう。
+</p>
+
+<p> <a href="link/reloc.s"> link/reloc.s </a> </p>
+
+<pre>
+	.globl	_start
+_start:
+	movl	$ref_32bit, %eax # 32bitアドレスを参照
+	movl	$ref_32bit + 32, %eax # 32bitアドレスを参照
+
+	movq	$ref_64bit, %rax # 32bit or 64bit アドレスを参照
+
+	jmp	ref_as_jmp_label # PC 相対アドレスを参照
+
+	mov	$60, %rax
+	syscall
+
+	.quad	ref_64bit  	# 64bitアドレスを参照
+	.long	ref_32bit	# 32bitアドレスを参照
+</pre>
+
+<pre>
+$ readelf -r reloc.o
+
+Relocation section '.rela.text' at offset 0x160 contains 6 entries:
+  Offset          Info           Type           Sym. Value    Sym. Name + Addend
+000000000001  00050000000a R_X86_64_32       0000000000000000 ref_32bit + 0
+000000000006  00050000000a R_X86_64_32       0000000000000000 ref_32bit + 20
+00000000000d  00060000000b R_X86_64_32S      0000000000000000 ref_64bit + 0
+00000000001f  000600000001 R_X86_64_64       0000000000000000 ref_64bit + 0
+000000000027  00050000000a R_X86_64_32       0000000000000000 ref_32bit + 0
+000000000012  000700000002 R_X86_64_PC32     0000000000000000 ref_as_jmp_label - 4
+</pre>
+
+<pre>
+$ objdump -d reloc.o 
+
+reloc.o:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000000000 &lt;_start&gt;:
+   0:	b8 00 00 00 00       	mov    $0x0,%eax
+   5:	b8 00 00 00 00       	mov    $0x0,%eax
+   a:	48 c7 c0 00 00 00 00 	mov    $0x0,%rax
+  11:	e9 00 00 00 00       	jmpq   16 &lt;_start+0x16&gt;
+  16:	48 c7 c0 3c 00 00 00 	mov    $0x3c,%rax
+  1d:	0f 05                	syscall 
+	...
+</pre>
+
+<pre>
+  Offset          Info           Type           Sym. Value    Sym. Name + Addend
+000000000001  00050000000a R_X86_64_32       0000000000000000 ref_32bit + 0
+</pre>
+
+<p>
+  まず、Offset、これは解決した値を埋める位置を示している。最初の mov 命令の32bitオペランドの位置が、
+  先頭から1byteのところにあるのを確認しよう。
+  これが1byteなので、Offsetは1だ。
+</pre>
+
+<pre>
+           v ここに解決した32bit値を入れる
+   0:	b8 00 00 00 00       	mov    $0x0,%eax
+</pre>
+
+<p>
+  次に、Info と Type。x86_64 では、 Info の下32bitが Type になり、Type のカラムは、この32bit値を読みやすい形で表示しているだけだ。
+  Info の下32bit が、0x0000000a の場合、Type が R_X86_64_32 になる。
+</p>
+
+<p>
+  Type の解釈方法は、CPUによって異なる。x86_64 の場合は、<a href="https://www.uclibc.org/docs/psABI-x86_64.pdf"> AMD64 ABI </a> に書かれている。
+  まあ筆者もこれはちゃんと読んだことはなくて、自分でリンカを作るとかでなければ、/usr/include/elf.h にある定義を見ればよいと思う。
+</p>
+
+<p>
+  reloc.o に含まれるリロケーションの Type には色々あるのを確認してほしい。シンボルの参照方法は、一種類ではなく、複数ある。
+</p>
+
+<pre>
+	movl	$ref_32bit, %eax # 32bitアドレスを参照
+	movq	$ref_64bit, %rax # 32bit or 64bit アドレスを参照
+</pre>
+
+<ul>
+  <li> movl のほうは、ラベル解決後の値を32bit値として、命令のオペランドに埋めてほしい </li>
+  <li> movq のほうは、ラベル解決後の値を64bit値として、命令のオペランドに埋めてほしい (実際には少し正しくない。詳細はあとのアドレスリラクゼーションのところで書く) </li>
+</ul>
+
+<p> このふたつでは、命令中のオペランドの書き換えかたが変わるはずだ。ここで、「どうやってオペランドを書き換えるか」を示すのが、リロケーションのTypeだ。</p>
+
+
+
 
 
   <h3> セクション </h3>
