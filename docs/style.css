@@ -1,4 +1,8 @@
-pre { border: solid 1px; background-color: #cccccc; padding: 2pt; margin: 2pt; white-space: pre-wrap; }
+pre { border: solid 1px;
+      background-color: #cccccc;
+      padding: 2pt;
+      margin: 10pt;
+      white-space: pre-wrap; }
 em { font-weight: bold; color: red }
 table,td,th { border: solid 1px; }
 .kokomade { color: green; }
