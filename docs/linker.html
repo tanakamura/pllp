@@ -797,86 +797,9 @@ local_symbol0.o: In function `_start':
 
 <p> あとウィークシンボルというのもあるが、これはLinux(というかELF)固有の概念なので特にここでは書かない。興味がある人は各自で調べてほしい。 </p>
 
-<p> -- </p>
-
-<p> また、シンボル情報はDLLを使わない場合、実行時には必要の無い情報だが、デバッグ時にはいくらか有用な場合があることを覚えておこう。 </p>
-
-<p>
-  これまで何度か gdb を使ってプログラムを動かしてきたと思うが、そのときに、数字のアドレスではなく、
-  文字列としてのシンボルを扱えていたことを思い出してほしい。
-  例えば、"break _start" などとすると、_startシンボルを解決した後のアドレスにブレークポイントを設定できていたはずだ。
-</p>
-
-<p>
-  デバッガは、デバッグ情報が存在しなかった場合でも、残っているシンボル情報から、なるべくアドレスがわかりやすい値になるように
-  最善を尽くす努力をしていて、
-</p>
-
-<ul>
-  <li> アドレスを表示する場合には、そのアドレス付近に存在するシンボルから、一番それっぽいのを探して表示する </li>
-  <li> ユーザがシンボル文字列を入力した場合には、そのシンボルと対応するアドレス値をうまいこと扱う </p>
-</ul>
-
-<p> というような挙動をする。 </p>
-<p> 一番最初に info registers と打ったときの結果を思い出してほしい。 </p>
-
-<pre>
-(gdb) start
-Temporary breakpoint 1 at 0x4004d6
-Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
-
-Temporary breakpoint 1, 0x00000000004004d6 in main ()
-(gdb) info registers
-rax            0x4004d6	4195542
-rbx            0x0	0
-rcx            0x0	0
-rdx            0x7ffffffee518	140737488282904
-rsi            0x7ffffffee508	140737488282888
-rdi            0x1	1
-rbp            0x4004e0	0x4004e0 &lt;__libc_csu_init&gt;
-rsp            0x7ffffffee428	0x7ffffffee428
-r8             0x400550	4195664
-r9             0x7fffff410ab0	140737475840688
-r10            0x846	2118
-r11            0x7fffff050740	140737471907648
-r12            0x4003e0	4195296
-r13            0x7ffffffee500	140737488282880
-r14            0x0	0
-r15            0x0	0
-rip            0x4004d6	0x4004d6 &lt;main&gt;
-eflags         0x246	[ PF ZF IF ]
-cs             0x33	51
-ss             0x2b	43
-ds             0x0	0
-es             0x0	0
-fs             0x0	0
-gs             0x0	0
-
-</pre>
-
-<p>
-  rbp の値に __libc_csu_init という文字列が付いているのがわかるだろう。
-  これが gdb が rbp に残っていた値から探してきたシンボルの文字列だ。
-</p>
-
-<p>
-  __libc_csu_init は、名前からして、libc の C Start Up の init だという推測ができる。
-  main に来る前のスタートアップの初期化処理で rbp レジスタに何か値を入れていたのが残っていたのだろう。
-</p>
-
-<ul>
-  <li> デバッガは値と紐付いたシンボル文字列を探してくるように努力する </li>
-  <li> main に来る前にはスタートアップ処理が入る </li>
-</ul>
-
-<p>
-  という二点を知っておけば、main に来た直後にデバッガで全レジスタを表示したら、スタートアップ処理に関連するシンボルが表示される可能性が高いという
-  のは推測できるようになって、この表示は不思議な表示ではなくなったはずだ。
-</p>
+<p> あとc,c++に依存したシンボル属性もある。これはあとでC言語のところで説明しよう。</p>
 
 <h4> リロケーション </h4>
-
-<p class="kokomade"> (ここまで書いた )</p>
 
 <p>
   次に<em>リロケーション</em> だ。<em> リロケーション </em> は、アドレス解決後の値を埋め込む方法を保持する情報だ。
@@ -911,11 +834,7 @@ $
  </pre>
 
 <p>
-  "-r" で出したものがリロケーション、"-s" で出したものがシンボルだ。
-</p>
-
-<p>
-  リロケーションから詳しく見ていこう。
+  詳しく見ていこう。
 </p>
 
 <p> <a href="link/reloc.s"> link/reloc.s </a> </p>
@@ -935,7 +854,7 @@ _start:
 </pre>
 
 
-<p> <a href="link/reloc.s"> link/reloc_label.s </a> </p>
+<p> <a href="link/reloc_label.s"> link/reloc_label.s </a> </p>
 <pre>
 	.text
 	.globl ref_32bit
@@ -1012,7 +931,7 @@ Disassembly of section .text:
 
 
 <pre>
-$ ld  reloc.o reloc_label.o -Ttext=0x0     # ラベル値を8bit以内にするためtextの位置を0にしておく
+$ ld  reloc.o reloc_label.o -Ttext=0x0     # ラベルの配置アドレスを8bit以内にするためtextの位置を0にしておく
 $ objdump  -d a.out                        # リンク後の逆アセンブル
 
 a.out:     file format elf64-x86-64
@@ -1114,6 +1033,11 @@ Disassembly of section .text:
    5:	66 b8 20 00          	mov    $0x20,%ax    # ラベル ref_16bit を解決した値 20 を 16bit値として入れる
 </pre>
 
+<p>
+  このように、リロケーションの指示に応じて、適切なリンク後の値をオブジェクトに入れる処理を<em>リロケーション(relocation)</em>と呼ぶ。
+  これはタイポではないと信じている。リロケーションを置換する処理をリロケーションと呼ぶのが一般的なはずだ。
+</p>
+
 <p> また、同じサイズのリロケーションでもTypeが異なる場合がある。 </p>
 
 <pre>
@@ -1153,6 +1077,182 @@ Disassembly of section .text:
   jmp 命令の次の命令のアドレスが0x10、
   ref_as_jmp_label の解決後の値が 0x22、その差は  +0x12 となって、jmp 命令のオペランドには +0x12 が埋められることを確認してほしい。
 </p>
+
+<p> 最後に Addend だ。 </p>
+
+<p> リロケーションは、参照するシンボルから何byte離れているかのオフセットを持つことができる。 </p>
+
+<pre>
+	movl	$ref_32bit + 32, %eax # オフセット付き
+</pre>
+
+<p>
+  この命令の場合、$ref_32bit の値は、リンク後に決まるが、即値movl 命令には加算機能が無いので、
+  この +32 は、アセンブル時にも実行時にも計算することはできない。
+  しかし、実際にはこれは正しく意図したとおりに動作するはずだ。この +32 はリンカが計算している。
+</p>
+
+<p>
+  アセンブラは、アセンブル時に、ラベル + 定数となっている値は、あとでリンカが計算できるように、「ラベル + 定数」という情報をそのまま
+  リロケーションの中にエンコードする。
+</p>
+
+<pre>
+  Offset          Info           Type           Sym. Value    Sym. Name + Addend
+000000000011  00050000000a R_X86_64_32       0000000000000000 ref_32bit + 20
+</pre>
+
+<p> readelf -r を見ると、ref_32bit + 20 (10進で32) と、そのままの形で情報が保存されているのが確認できるはずだ。 </p>
+
+<p> 最後に、リロケーションのサイズについて。</p>
+<p>リロケーションする値が、リロケーションの型のサイズを上回っていた場合、リンク時にエラーになる。</p>
+
+<pre>
+$ as reloc_label.s -o reloc_label.o 
+$ as reloc.s -o reloc.o 
+$ ld  reloc.o reloc_label.o -Ttext=0x100     # ラベルの配置アドレスを8bitを超えるようにする。
+reloc.o: In function `_start':
+(.text+0xa): relocation truncated to fit: R_X86_64_8 against symbol `ref_8bit' defined in .text section in reloc_label.o
+</pre>
+
+<p> ref_8bit の値が、R_X86_64_8 (8bit) に収めるために、切り捨てられたというエラーメッセージが出るはずだ。</p>
+
+<p> C 言語でも似たようなエラーを見たことがある人がいるかもしれない。 </p>
+
+<p> <a href="link/large0.c"> link/large0.c </a> </p>
+<pre>
+#include &lt;stdio.h&gt;
+extern int a[];
+extern int b[];
+
+int main()
+{
+    printf(&quot;%d %d\n&quot;, a[0], b[0]);
+}
+</pre>
+
+<p> <a href="link/large1.c"> link/large1.c </a> </p>
+<pre>
+int a[1024*1024*1024*4ULL];
+int b[1024*1024*1024*4ULL];
+</pre>
+
+<p> ぱっと思い付くのは、32bit の範囲を超えるサイズの配列を定義した場合だ。 </p>
+
+<pre>
+$ gcc large0.c large1.c
+/tmp/ccOwnkuE.o: In function `main&39;:
+large0.c:(.text+0xc): relocation truncated to fit: R_X86_64_PC32 against symbol `a&39; defined in COMMON section in /tmp/cclJzRGJ.o
+collect2: error: ld returned 1 exit status
+</pre>
+
+<p>
+  x86_64 の gcc は、特に指定しない場合、配列の参照に 32bit リロケーションを使うので、配列サイズが32bitを超えてしまうと、
+  リンクに失敗するようになる。
+</p>
+
+<p> 対処法としては、gcc に -mcmodel=large を付けると、配列の参照時のリロケーションに、64bit リロケーションを使ってくれるようになる。 </p>
+
+<pre>
+$ gcc -mcmodel=large large0.c large1.c
+$ ./a.out 
+0 0
+</pre>
+
+<h4> リンク手順のまとめ </h4>
+
+<p> 色々と書いたので、少しまとめておこう。ここを読んでよくわからなければ、もう一度この章を最初から読んでいってほしい。 </p>
+
+<p> (TODO:図を入れる) </p>
+
+<p> 1. アセンブラが、ラベル位置、ラベル文字列、ラベル参照を適切なシンボル、リロケーションにエンコードしてオブジェクトに入れる </p>
+<p> 2. リンカは、起動されると渡されたオブジェクトを順に並べていく </p>
+<p> 3. オブジェクトを並べると定義済みシンボルの最終的な位置が確定する </p>
+<p> 4. 確定した定義済みシンボルの値をリロケーションに埋めていく </p>
+
+
+<p class="kokomade"> (ここまで書いた )</p>
+
+<h3> デバッグとシンボル </h3>
+
+<p>
+  シンボル情報はDLLを使わない場合、実行時には必要の無い情報だが、
+  デバッグ時や、その他問題の対応時に人間にとっていくらか有用な場合があることを覚えておこう。
+</p>
+
+<p>
+  これまで何度か gdb を使ってプログラムを動かしてきたと思うが、そのときに、数字のアドレスではなく、
+  文字列としてのシンボルを扱えていたことを思い出してほしい。
+  例えば、"break _start" などとすると、_startシンボルを解決した後のアドレスにブレークポイントを設定できていたはずだ。
+</p>
+
+<p>
+  デバッガは、デバッグ情報が存在しなかった場合でも、残っているシンボル情報から、なるべくアドレスがわかりやすい値になるように
+  最善を尽くす努力をしていて、
+</p>
+
+<ul>
+  <li> アドレスを表示する場合には、そのアドレス付近に存在するシンボルから、一番それっぽいのを探して表示する </li>
+  <li> ユーザがシンボル文字列を入力した場合には、そのシンボルと対応するアドレス値をうまいこと扱う </p>
+</ul>
+
+<p> というような挙動をする。 </p>
+<p> 一番最初に info registers と打ったときの結果を思い出してほしい。 </p>
+
+<pre>
+(gdb) start
+Temporary breakpoint 1 at 0x4004d6
+Starting program: /mnt/d/wsl/src/pllp/docs/x8664_asm_language/a.out 
+
+Temporary breakpoint 1, 0x00000000004004d6 in main ()
+(gdb) info registers
+rax            0x4004d6	4195542
+rbx            0x0	0
+rcx            0x0	0
+rdx            0x7ffffffee518	140737488282904
+rsi            0x7ffffffee508	140737488282888
+rdi            0x1	1
+rbp            0x4004e0	0x4004e0 &lt;__libc_csu_init&gt;
+rsp            0x7ffffffee428	0x7ffffffee428
+r8             0x400550	4195664
+r9             0x7fffff410ab0	140737475840688
+r10            0x846	2118
+r11            0x7fffff050740	140737471907648
+r12            0x4003e0	4195296
+r13            0x7ffffffee500	140737488282880
+r14            0x0	0
+r15            0x0	0
+rip            0x4004d6	0x4004d6 &lt;main&gt;
+eflags         0x246	[ PF ZF IF ]
+cs             0x33	51
+ss             0x2b	43
+ds             0x0	0
+es             0x0	0
+fs             0x0	0
+gs             0x0	0
+
+</pre>
+
+<p>
+  rbp の値に __libc_csu_init という文字列が付いているのがわかるだろう。
+  これが gdb が rbp に残っていた値から探してきたシンボルの文字列だ。
+</p>
+
+<p>
+  __libc_csu_init は、名前からして、libc の C Start Up の init だという推測ができる。
+  main に来る前のスタートアップの初期化処理で rbp レジスタに何か値を入れていたのが残っていたのだろう。
+</p>
+
+<ul>
+  <li> デバッガは値と紐付いたシンボル文字列を探してくるように努力する </li>
+  <li> main に来る前にはスタートアップ処理が入る </li>
+</ul>
+
+<p>
+  という二点を知っておけば、main に来た直後にデバッガで全レジスタを表示したら、スタートアップ処理に関連するシンボルが表示される可能性が高いという
+  のは推測できるようになって、この表示は不思議な表示ではなくなったはずだ。
+</p>
+
 
   <h3> セクション </h3>
   <h3> 実行ファイル、セグメント </h3>
