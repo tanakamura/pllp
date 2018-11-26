@@ -1170,9 +1170,6 @@ $ ./a.out
 <p> 3. オブジェクトを並べると定義済みシンボルの最終的な位置が確定する </p>
 <p> 4. 確定した定義済みシンボルの値をリロケーションに埋めていく </p>
 
-
-<p class="kokomade"> (ここまで書いた )</p>
-
 <h3> デバッグとシンボル </h3>
 
 <p>
@@ -1187,7 +1184,8 @@ $ ./a.out
 </p>
 
 <p>
-  デバッガは、デバッグ情報が存在しなかった場合でも、残っているシンボル情報から、なるべくアドレスがわかりやすい値になるように
+  デバッガは、デバッグ情報が存在しなかった場合でも、
+  残っているシンボル情報から、なるべくアドレスがわかりやすい値になるように
   最善を尽くす努力をしていて、
 </p>
 
@@ -1253,11 +1251,344 @@ gs             0x0	0
   のは推測できるようになって、この表示は不思議な表示ではなくなったはずだ。
 </p>
 
+<p>
+  シンボル情報は、実行時には必要ないものもあるので、実行ファイルから消すことものできる。
+  Linux環境では、strip -s するとシンボル情報を消すことが可能だ。
+</p>
+
+<pre>
+$ gcc -static main.s
+$ readelf -s a.out
+
+Symbol table '.symtab' contains 1803 entries:
+   番号:      値         サイズ タイプ  Bind   Vis      索引名
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+(.. 略 ..)
+  1802: 00000000004100d0   279 FUNC    WEAK   DEFAULT    6 fopen64
+
+
+$ strip -s a.out
+$ readelf -s a.out
+$ # 何も表示されない
+$
+$ gdb a.out
+GNU gdb (Ubuntu 8.1-0ubuntu3) 8.1.0.20180409-git
+Copyright (C) 2018 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+&lt;http://www.gnu.org/software/gdb/bugs/&gt;.
+Find the GDB manual and other documentation resources online at:
+&lt;http://www.gnu.org/software/gdb/documentation/&gt;.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from a.out...(no debugging symbols found)...done.
+(gdb) start
+No symbol table loaded.  Use the "file" command.
+ 
+</pre>
+
+<p>
+  strip -s すると、readelf -s しても何も表示されなくなっていることを確認しよう。
+</p>
+
+<p>
+  また、gdb の start コマンドも使えなくなっていることも確認してほしい。
+</p>
+
+<p>
+  gdb の start コマンドは、定義済みシンボル "main" のあるアドレスにブレークポイントを設定するが、
+  strip -s してしまうと、定義済みシンボル "main" に関する情報は削除されてしまうので、
+  start コマンドは使えなくなってしまう。
+</p>
+
+<p>
+  また、これまで gdb で disassemble コマンドを実行したときに、
+  main に書いた覚えのない命令が付いているのに気付いた人もいるかもしれない。
+</p>
+
+<pre>
+$ gcc main.s
+$ gcc -static main.s
+$ gdb a.out
+GNU gdb (Ubuntu 8.1-0ubuntu3) 8.1.0.20180409-git
+Copyright (C) 2018 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+&lt;http://www.gnu.org/software/gdb/bugs/&gt;.
+Find the GDB manual and other documentation resources online at:
+&lt;http://www.gnu.org/software/gdb/documentation/&gt;.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from a.out...(no debugging symbols found)...done.
+(gdb) start
+Temporary breakpoint 1 at 0x400b4d
+Starting program: /home/w0/src/pllp/docs/link/a.out 
+
+Temporary breakpoint 1, 0x0000000000400b4d in main ()
+(gdb) disassemble
+Dump of assembler code for function main:
+=&gt; 0x0000000000400b4d &lt;+0&gt;:	retq   
+   0x0000000000400b4e &lt;+1&gt;:	xchg   %ax,%ax   # この xchg は自分で書いたものではない
+End of assembler dump.
+(gdb) 
+</pre>
+
+<p>
+  main の ret のあとに、自分で書いたことのないxchgが付いているのを確認しよう。(環境によっては状況が変わるかもしれない)
+</p>
+
+<p>
+  定義済みシンボルは、あくまで単一のアドレスを指すだけなので、
+  mainシンボルが置かれた位置を記録できるが、mainに含まれる命令群の終わりは記録されていない。
+</p>
+
+<p>
+  disassemble というコマンドは、指定された関数に含まれる命令列を表示するコマンドだが、
+  gdbから見た場合、関数の先頭アドレスしかわからないのだ。
+  そのため、disassemble は、次の定義済みシンボルまでの領域を関数と推測して、それを表示している。
+</p>
+
+<pre>
+(gdb) x/4i main
+   0x400b4d &lt;main&gt;:	retq   
+   0x400b4e &lt;main+1&gt;:	xchg   %ax,%ax
+   0x400b50 &lt;get_common_indeces.constprop.1&gt;:	push   %rbx
+   0x400b51 &lt;get_common_indeces.constprop.1+1&gt;:	sub    $0x88,%rsp
+</pre>
+
+<p> 
+  x コマンドなどで命令列を表示すれば、次の命令に定義済みシンボルが起かれていることを確認できるはずだ。
+  (これも環境によって変わる場合があるので、別の表示になっているかもしれない)
+</p>
+
+<p>
+  幸い、Linuxで採用されているELFでは、定義済みシンボルに、サイズとシンボルの種類を与えることができる。
+</p>
+
+<p> <a href="link/main_with_size.s"> link/main_with_size.s </a> </p>
+<pre>
+	.globl	main
+main:
+	ret
+	.size	main, 1            # main のサイズ = 1byte
+	.type	main, @function    # main は FUNC
+</pre>
+
+<pre>
+$ gcc main_with_size.s
+$ LANG=C readelf -s a.out | grep '\(Size\)\|\( main\)'
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+   Num:    Value          Size Type    Bind   Vis      Ndx Name
+    55: 00000000000005fa     1 FUNC    GLOBAL DEFAULT   13 main
+$ gdb a.out
+GNU gdb (Ubuntu 8.1-0ubuntu3) 8.1.0.20180409-git
+Copyright (C) 2018 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later &lt;http://gnu.org/licenses/gpl.html&gt;
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.  Type "show copying"
+and "show warranty" for details.
+This GDB was configured as "x86_64-linux-gnu".
+Type "show configuration" for configuration details.
+For bug reporting instructions, please see:
+&lt;http://www.gnu.org/software/gdb/bugs/&gt;.
+Find the GDB manual and other documentation resources online at:
+&lt;http://www.gnu.org/software/gdb/documentation/&gt;.
+For help, type "help".
+Type "apropos word" to search for commands related to "word"...
+Reading symbols from a.out...(no debugging symbols found)...done.
+(gdb) disassemble main
+Dump of assembler code for function main:
+   0x00000000000005fa &lt;+0&gt;:	retq   
+End of assembler dump.
+</pre>
+
+<p>
+  readelf で見て、Size が 1 になっており、
+  disassemble の結果が正しく1byte分の命令だけ表示されていることを確認しよう。
+  (シンボルのタイプをFUNCにする効果は筆者もよく知らない)
+</p>
+
+<p>
+  シンボルに関する情報は、このようにプログラムを解析する場合にも活用できることが
+  ご理解いただけただろうか。
+</p>
+
+<p>
+  ただ、現実的には、自分でプログラムをビルドした時には、より強力な<em>デバッグ情報</em>を
+  活用してデバッグをすることが多いだろう。
+</p>
+
+<p>
+  デバッガを使ったことがある人なら、実行中の関数のローカル変数の状態を表示したりしたことがあるはずだ。
+  これらを表示するために必要な情報はシンボル情報には含まれておらず、
+  別途デバッグ情報と呼ばれる情報を付加してビルドする必要がある。
+</p>
+
+<p>
+  デバッグ情報については、またあとのデバッガの章で詳しく解説することにしよう。
+</p>
+
+<p>
+  この節では、デバッグ情報が無くてもデバッガは残された情報を
+  努力して表示しているということを説明したかった。
+  このデバッガの努力は、他人がビルドしてデバッグ情報が手に入らないようなプログラムを
+  解析するぐらい追い詰められた時に役立ってくれるはずだ。
+</p>
 
   <h3> セクション </h3>
+
+<p>
+  現代の多くのコンピュータでは、プログラムもデータもメモリに置かれたビット列であって、
+  そのビット列の解釈の方法に違いがあるだけで、保存された情報に本質的な区別はない。
+</p>
+
+<p>
+  それでも、ビット列の使いかたにあわせて、
+  ビット列を分類してまとめておくと、有用な場合がある。
+</p>
+
+<p>
+  わかりやすいのは、読み書きするビット列と読み込み専用ビット列の区別だ。
+</p>
+
+<p>
+  本当に小さな組み込み機器に入っているコンピュータには、
+  書き換え可能なRAMはほんの数KBぐらいしかなく、
+  それに少し大きめのマスクROMが付いている、というものが多く存在する。
+</p>
+
+<p>
+  そのようなコンピュータでメモリを効率良く使用するには、プログラムで使うビット列を、
+</p>
+
+<ul>
+  <li> 読み書きするビット列はRAMに置く </li>
+  <li> 読み込み専用ビット列はROMに置く </li>
+</ul>
+
+<p> というように使い分けて、小さなRAMに乗るデータは必要最低限にしたほうがいい。 </p>
+
+<p>
+  また、一部のマイナーなコンピュータでは、データ用のメモリと、プログラム用のメモリが
+  完全に別れているものもあるが、そういう場合は、
+  プログラムとして使われるビット列だけを別にまとめておかないと、
+  正しく動くプログラムが出力できない。
+</p>
+
+<p>
+  このようなことを実現するために、
+  オブジェクトファイルは、ビット列を分類する機能を持っている。
+  この分類を、<em>セクション(section)</em>と呼ぶ。
+</p>
+
+<p> 多くの環境で使われているセクションは、次のよっつだ </p>
+
+<ul>
+  <li> text : プログラムのビット列を入れるセクション </li>
+  <li> data : 読み書きするビット列を入れるセクション </li>
+  <li> rodata : 読み込み専用のビット列を入れるセクション </li>
+  <li> bss : 読み書きするビット列のうち、初期値がゼロのものを入れるセクション </li>
+</ul>
+
+<p>
+  (data,rodata はともかく、text,bss という名前は意味不明だが、
+  これは多くの環境で採用されている名前なので、
+  深く考えないでそういうものだと覚えるしかない。)
+</p>
+
+<p>
+  bss は data とほぼ同じだが、 bss が data とは別に用意されている理由について説明をしておこう。
+</p>
+
+<p>
+  実際のプログラムでは、読み書きされるビット列には、プログラム開始時には初期値が必要ないものが多い。
+  この初期値の必要ないビット列を保存する領域は、オブジェクトファイル内にビット列を保存する必要がなく、
+  領域のサイズだけを保存しておけば十分だ。
+</p>
+
+<p>
+  そこで、初期値のない領域については、オブジェクトファイル内にビット列を保存するのではなく、
+  かわりに、領域のサイズだけを記録しておく。
+  そうすれば、オブジェクトファイルのサイズを減らすことができる。
+</p>
+
+<p>
+  PCでは実行ファイルのサイズは対した問題ではないが、ROM領域の限られた小さいマシンでは、
+  実行ファイルのサイズが小さくなれば助かることも多い。
+  そのため、初期値の必要ないデータは、初期値ありの読み書きするデータとは区別しておくのだ。
+</p>
+
+<p>
+  (TODO:適切な図を入れる)
+</p>
+
+
+<p>
+  実際の環境では、この標準的なよっつのセクション(text,data,rodata,bss)に加えて、
+  環境依存のセクションがいくつかある。それについてはまた必要になったときに説明しよう。
+</p>
+
+<p class="kokomade"> (ここまで書いた )</p>
+
+<p>
+  アセンブリ言語には、内で指定されたビット列(命令、データ)をどのセクションに配置するか
+  を指示する疑似命令があり、アセンブラは、これに従って、プログラマに指示された通りにビット列を
+  適切なセクションに配置していく。
+</p>
+
+<p>
+  リンカは、与えられたオブジェクトファイルに含まれるビット列を結合するときに、
+  セクションごとにまとめて、アドレスを与えて結合していく。
+</p>
+
+
   <h3> 実行ファイル、セグメント </h3>
 
   <h3> ELF </h3>
+
+<p> ここまで、シンボル、リロケーション、セクション、セグメント について説明してきた。 </p>
+
+<p> GNU/Linux 環境では、これらの情報は、<em>ELF (Executable Loadable Format)</em> というフォーマットを持つオブジェクトファイルの中に保存される。 </p>
+
+<p>
+  ELFの構造を覚えておけば、アセンブラ、リンカが何をやってるかというのがより具体的に
+  イメージできるようになるだろう。
+</p>
+
+<p>
+  また、ELFファイルを読むプログラムをぱっと書けるようになれば、
+  まあ色々な場面で役立つことがあるはずだ。
+  筆者もELFファイルをロードするプログラムを書いて救われた場面が何度かある。
+</p>
+
+<h4> elf.h </h4>
+
+<p>
+  ELF ファイルを読むために必要な構造体などは、elf.h というヘッダに含まれている。
+  elf.h は、glibc のヘッダの一部としてインストールされるようなので、
+  Linux上でC言語が使える環境なら、通常はあわせてインストールされているはずだ。
+</p>
+
+<p>
+  man elf を見れば、このelf.hに含まれている定義の説明も確認できるだろう。
+</p>
+
+<p>
+  一旦構造を理解すれば、あとはこの elf.h と man elf を見れば
+  ELFを読み書きするプログラムが書けるようになるはずだ。
+</p>
+
+<h4> 
 
   <h3> ldscript </h3>
 

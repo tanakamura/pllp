@@ -1,3 +1,4 @@
 	.globl	main
 main:
 	ret
+
