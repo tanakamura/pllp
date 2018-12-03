@@ -653,14 +653,129 @@ main:
 <p> x86 は、32bit から 64bit に拡張されるときに、レジスタ幅が64bitになり、さらにレジスタ数が8個から倍の16個に増えた。</p>
 <p> この拡張された部分の情報を入れるのが、REXプレフィクスだ。 </p>
 
-<p class="kokomade"> (ここまで書いた )</p>
+<p>
+  32bit x86 では、0x40, 0x41, .. 0x4f の16個 1byte オペコードは、inc eax, inc ecx, ... inc edi, dec eax, dec ecx, ... dec edi という、 
+  8レジスタ分の inc 命令、8 レジスタ分の dec 命令が割り当てられていた。
+</p>
+
+<p> <a href="x8664_machine_language/incdec.s"> x8664_machine_language/incdec.s </a> </p>
+
+<pre>
+	inc	%eax
+	inc	%ecx
+	inc	%edx
+	inc	%ebx
+	inc	%esp
+	inc	%ebp
+	inc	%esi
+	inc	%edi
+
+	dec	%eax
+	dec	%ecx
+	dec	%edx
+	dec	%ebx
+	dec	%esp
+	dec	%ebp
+	dec	%esi
+	dec	%edi
+</pre>
+
+<pre>
+$ gcc -c -m32 incdec.s     # gcc に -m32 を付けると x86 32bit 用にファイルを変換する
+$ objdump  -d incdec.o
+
+incdec.o:     file format elf32-i386
 
 
+Disassembly of section .text:
+
+00000000 &lt;.text&gt;:
+   0:	40                   	inc    %eax
+   1:	41                   	inc    %ecx
+   2:	42                   	inc    %edx
+   3:	43                   	inc    %ebx
+   4:	44                   	inc    %esp
+   5:	45                   	inc    %ebp
+   6:	46                   	inc    %esi
+   7:	47                   	inc    %edi
+   8:	48                   	dec    %eax
+   9:	49                   	dec    %ecx
+   a:	4a                   	dec    %edx
+   b:	4b                   	dec    %ebx
+   c:	4c                   	dec    %esp
+   d:	4d                   	dec    %ebp
+   e:	4e                   	dec    %esi
+   f:	4f                   	dec    %edi
+</pre>
 
 <p>
-  x86_64は、32bit x86命令セットとそれなりの互換性を持たせながら、64bitに拡張し、レジスタ数も増やすという無茶なノルマを達成するために、
-  REX プレフィクスというプレフィクスが増えた。
+  しかし、x86 の inc/dec 命令は、条件によっては性能上ペナルティがあるため、x86の世界では、あまり使われなくなっていた。
 </p>
+
+<p>
+  x86-64 では、この 16 個の inc/dec 命令が削除されて、命令の上位 4bit が 0x4 の場合、それを <em> REX プレフィクス </em> として使うことになった。
+</p>
+
+<p>
+  REX プレフィクスは、REXプレフィクス識別用の4bit '0x4' と、レジスタおよび演算を拡張する WRXB の 4つのビットからなる。
+</p>
+
+<table>
+  <tr> <td> bit </td> <td> 7 </td> <td> 6 </td> <td> 5 </td> <td> 4 </td> <td> 3 </td> <td> 2 </td> <td> 1 </td> <td> 0 </td> </tr>
+  <tr> <td>     </td> <td> 0 </td> <td> 1 </td> <td> 0 </td> <td> 0 </td> <td> W </td> <td> R </td> <td> X </td> <td> B </td> </tr>
+  <tr> <td>     </td> <td colspan="4"> 識別用の 0x4 </td>                 <td colspan="4"> 64bit 拡張用 4bit  </td> </tr>
+</table>
+
+<p> まず、W bit だ。</p>
+
+<p> W bit は、前にも書いたが、演算を拡張するbitだ。 </p>
+
+<p> 命令にREXプレフィクスが付いていて、その中の W bit が 1 になっていた場合、演算が 64bit 演算になる。 </p>
+
+<p> <a href="x8664_machine_language/rex-w.s"> x8664_machine_language/rex-w.s </a> </p>
+
+<pre>
+	add	$1, %eax 	# 32bit 演算
+	add	$1, %rax	# 64bit 演算
+</pre>
+
+<pre>
+   0:	83 c0 01             	add    $0x1,%eax
+   3:	48 83 c0 01          	add    $0x1,%rax   # (0x40 | W:1)  = 0x48
+</pre>
+
+<p> 次に R,X,B の 3bit だ。 </p>
+
+<p> x86 では、ModR/M を取る命令は、最大3つのレジスタをオペランドに取ることを思い出そう。 </p>
+
+<p> "add %rax, (%rcx,%rdx,4)" という命令があった場合、使うレジスタは、rax, rcx, rdx のみっつだ。 </p>
+
+<p> R,X,B の3個のbitは、この3つのレジスタに対応する。</p>
+
+<pre>
+     add  %rax,  (%rcx,  %rdx,  4) 
+           R        B      X
+</pre>
+
+<p> <a href="x8664_machine_language/rex-rxb.s"> x8664_machine_language/rex-rxb.s </a> </p>
+
+<pre>
+	add	%r8d, (%rcx, %rdx, 4) # R=1
+	add	%eax, (%rcx, %r10, 4) # X=1
+	add	%eax, (%r9 , %rdx, 4) # B=1
+</pre>
+
+<pre>
+   0:	44 01 04 91          	add    %r8d,(%rcx,%rdx,4) # (0x40 | R:1)  = 0x44
+   4:	42 01 04 91          	add    %eax,(%rcx,%r10,4) # (0x40 | X:1)  = 0x42
+   8:	41 01 04 91          	add    %eax,(%r9,%rdx,4)  # (0x40 | B:1)  = 0x41
+</pre>
+
+<p> 対応する RXB のビットが変わっていることを確認しよう。 </p>
+
+<p class="kokomade"> (ここまで書いた )</p>
+
+<h3> 浮動小数命令 </h3>
 
 <h3> SSEなどの拡張命令 </h3>
 
