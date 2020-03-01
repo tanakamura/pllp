@@ -199,7 +199,7 @@ a.out  main.s
 </pre>
 
 <p>
-  gcc -c で main.s をアセンブルした時は、main.o に出力してくれるが、as でアセンブルすると、指定しないと a.out というファイルになる。
+  gcc -c で main.s をアセンブルした時は、main.o に出力してくれるが、as でアセンブルすると、出力ファイル名を指定しない場合 a.out というファイルに出力される。
   紛らわしいが、この a.out は実行できるファイルではない。
 </p>
 
@@ -1544,11 +1544,13 @@ End of assembler dump.
 
 <p>
   実際の環境では、この標準的なよっつのセクション(text,data,rodata,bss)に加えて、
-  環境依存のセクションがいくつかある。それについてはまた必要になったときに説明しよう。
+  環境依存のセクションや、リンクを補助するためのセクションがいくつかある。それについてはまた必要になったときに説明しよう。
 </p>
 
 
-
+<p> 
+  セクションの使いかたを理解していこう。
+</p>
 
 <p>
   アセンブリ言語には、内で指定されたビット列(命令、データ)をどのセクションに配置するか
@@ -1559,86 +1561,207 @@ End of assembler dump.
 <p> <a href="link/main.s"> link/section.s </a> </p>
 
 <pre>
-	.text
-	ret
+	.section .text, "ax", @progbits
+	.byte 0xaa
 
-	.section .rodata
-	ret
+	.section .rodata, "a", @progbits
+	.byte 0x55
 
-	.data
-	ret
+	.section .data, "aw", @progbits
+	.byte 0xff
+
+	.section .bss, "aw", @nobits
 </pre>
 
 <p> 
-  このアセンブリは、3つのret命令 (0xc3) を、.text, .rodata, .data セクションに配置する。
+  ".section" 疑似命令は、以下に続く命令、データを配置するセクションを指定するための疑似命令だ。".section &lt;名前&gt;, &lt;フラグ&gt;, &lt;タイプ&gt;" と書くと、指定した名前のセクションに命令、データを配置できる。
+  フラグとタイプの指定方法は、
+
+  <a href="https://sourceware.org/binutils/docs-2.34/as/Section.html#Section">https://sourceware.org/binutils/docs-2.34/as/Section.html#Section</a>
+
+  にあるが(Linux の場合は ELF Version の箇所を見よう)、簡単に書いておくと、
 </p>
+  
+<p> フラグは</p>
+  <ul>
+    <li> 'a' - 割り当て可能(付属情報ではなく、実行時にメモリ上にロードされるぐらいの意味) </li>
+    <li> 'x' - 実行可能 </li>
+    <li> 'w' - 書き込み可能 </li>
+  </ul>
 
 <p>
-  ".section" 疑似命令は、以下に続く命令、データを配置するセクションを指定するための疑似命令だ。".section &lt;名前&gt;" と書くと、指定した名前のセクションに命令、データを配置できる。
-
-  ".text", ".data" は…なんで存在するんでしょうねぇ…(よく知らない)
-
+  という文字を繋げてダブルクオートで囲って記述する。
 </p>
 
+<p> タイプは </p>
+<ul>
+  <li> @progbits - データを持っているセクション </li>
+  <li> @nobits - データを持たないセクション (.bssセクションはサイズだけを保持する) </li>
+</ul>
+<p> などが指定できる </p>
+
 <p>
-  これをアセンブルし、中身を見てみよう。
+さきほどの例の、
 </p>
 
 <pre>
-$ as sectioin.s -o section.o
-$ objdump -d section.o
-
-a.out:     file format elf64-x86-64
-
-
-Disassembly of section .text:
-
-0000000000000000 <.text>:
-   0:   c3                      retq  
+	.section .text, "ax", @progbits
 </pre>
 
 <p>
-  一個のretqが表示されている。
+  と行は、「以降の命令やデータを実行時にロードされて(a)実行可能な(x)、データを持った(@progbits) ".text" セクションに置く」という意味になる。
 </p>
 
 <p>
-  objdump は、-d を指定すると、.textセクションに含まれる機械語を逆アセンブルして表示する。
+  これを確認してみよう。 objdump コマンドに "-s" を付けて実行すると、各セクションに含まれるデータを表示できる
 </p>
-
-<p>
-  機械語のところで説明したとおり、機械語というのは、ただのバイト列で、それを見ただけではデータかプログラムかを判別することができない。
-  objdump は、含まれるデータがプログラムかデータかを判別するのにセクション名(か…属性か…どっちか)を使っている。(あとで調べる)
-  そのため、.rodata や .data に含まれる 0xc3 というバイト列はデータとみなされて逆アセンブルされない。
-</p>
-
-<p> .rodata や .data を含む全てのバイト列を逆アセンブルする場合は、 "-D" オプションを使う </p>
 
 <pre>
-$ objdump -D a.out
+$ as section.s
+$ objdump -s a.out
 
-a.out:     file format elf64-x86-64
+a.out:     ファイル形式 elf64-x86-64
 
-
-Disassembly of section .text:
-
-0000000000000000 <.text>:
-   0:   c3                      retq
-
-Disassembly of section .data:
-
-0000000000000000 <.data>:
-   0:   c3                      retq
-
-Disassembly of section .rodata:
-
-0000000000000000 <.rodata>:
-   0:   c3                      retq  
+セクション .text の内容:
+ 0000 aa                                   .               
+セクション .data の内容:
+ 0000 ff                                   .               
+セクション .rodata の内容:
+ 0000 55                                   U               
 </pre>
 
-<p> 全てのセクションに含まれる 0xc3 が逆アセンブルされていることを確認しよう。 </p>
+<p>
+  各セクションに指定したとおりにデータが格納されていることを確認しよう。
+</p>
+
+<p> readelf コマンドに "-S" オプションを付けて実行すると、各セクションに保存されたフラグなどを表示することができる。 </p>
+
+<pre>
+$ readelf -S a.out
+There are 8 section headers, starting at offset 0xf8:
+
+セクションヘッダ:
+  [番] 名前              タイプ           アドレス          オフセット
+       サイズ            EntSize          フラグ Link  情報  整列
+  [ 0]                   NULL             0000000000000000  00000000
+       0000000000000000  0000000000000000           0     0     0
+  [ 1] .text             PROGBITS         0000000000000000  00000040
+       0000000000000001  0000000000000000  AX       0     0     1
+  [ 2] .data             PROGBITS         0000000000000000  00000041
+       0000000000000001  0000000000000000  WA       0     0     1
+  [ 3] .bss              NOBITS           0000000000000000  00000042
+       0000000000000000  0000000000000000  WA       0     0     1
+  [ 4] .rodata           PROGBITS         0000000000000000  00000042
+       0000000000000001  0000000000000000   A       0     0     1
+  [ 5] .symtab           SYMTAB           0000000000000000  00000048
+       0000000000000078  0000000000000018           6     5     8
+  [ 6] .strtab           STRTAB           0000000000000000  000000c0
+       0000000000000001  0000000000000000           0     0     1
+p  [ 7] .shstrtab         STRTAB           0000000000000000  000000c1
+       0000000000000034  0000000000000000           0     0     1
+Key to Flags:
+  W (write), A (alloc), X (execute), M (merge), S (strings), I (info),
+  L (link order), O (extra OS processing required), G (group), T (TLS),
+  C (compressed), x (unknown), o (OS specific), E (exclude),
+</pre>
+
+<p> 指定した、.text, .data, rodata, .bss に付けたフラグ、タイプが適用されていることを確認しよう。 </p>
+
+<p>
+  なお、GNU のアセンブラは、よく使われる .text, .data, .bss のみっつのセクションはフラグ、タイプが事前に決まっており、この場合は、フラグ、タイプを省略して
+</p>
+
+<pre>
+	.section .text
+	.byte 0xaa
+
+	.section .rodata
+	.byte 0x55
+
+	.section .data
+	.byte 0xff
+
+        .section .bss
+</pre>
+
+<p>
+  と書いても全く同じオブジェクトが出力される。さらに、何故か .text, .data, .bss のみっつのセクションについては、専用の疑似命令が用意されており、
+</p>
+
+<pre>
+	.text
+	.byte 0xaa
+
+	.section .rodata
+	.byte 0x55
+
+	.data
+	.byte 0xff
+
+        .bss
+</pre>
+
+<p>
+と、書いても同じ結果になる。コンパイラが出力するアセンブリは、この省略形で出力されるので、覚えておこう。(なぜか.rodataには用意されていない。理由は筆者も知らないし、おそらくどうでもいい理由なので考えないようにしよう)
+</p>
 
 
-<p> そういえばセクションの属性ってどこで決まるんや…？名前…？ </p>
+<p> もう少し色々書いて理解を深めておこう。 </p>
+
+<p> .text などの名前は現代ではただの習慣なので、セクション名は自分の好きなように付けてよい。 </p>
+
+<pre>
+  .section anatano-sukina-namae,"awx",@progbits
+</pre>
+
+<p> ".text"などのように、セクション名の先頭に"."が付いてるのも習慣で、無くてもよい。 </p>
+
+<p> アセンブリに記述されたデータは、セクション毎に集められる。同じセクションを2度書いた場合、順番に並べられる。 </p>
+
+<p> <a href="link/section-order.s"> link/section-order.s </a> </p>
+
+<pre>
+	.section	section1
+	.byte	0x41 		# asciiの'A'
+	.byte	0x42 		# asciiの'B'
+	.byte	0x43
+	.byte	0x44
+	
+	.section	section2
+	.byte	0x45
+	.byte	0x46
+	.byte	0x47
+	.byte	0x48
+
+	.section	section1
+	.byte	0x49
+	.byte	0x4a
+	.byte	0x4b
+	.byte	0x4c
+</pre>
+
+<pre> 
+$ as section-order.s
+$ objdump -s 
+
+a.out:     ファイル形式 elf64-x86-64
+
+セクション section1 の内容:
+ 0000 41424344 494a4b4c                    ABCDIJKL        
+セクション section2 の内容:
+ 0000 45464748                             EFGH          
+</pre>
+
+<p> section1 には、"ABCD" "IJKL" が順に格納されて、section2 には EFGH が格納されていることを確認しよう。(section1が連結されている) </p>
+
+
+<p>
+  余談だが、readelfを使う場面と、objdumpを使う場面の使いわけ方法だが、筆者もあまり把握していない(どちらもセクションを表示する機能があるが、readelfの-sとobjdumpの-Sで違っており、これはいつも間違える)。両方実行してみて使えそうなほうを使うことが多い。
+</p>
+
+<p>
+  readelfはELFに特化したコマンドなのに対して、objdump はELFに限らず、Windowsや古のUnix用のオブジェクトも対応したコマンドになっている。多くの場合は、ヘッダなどのメタ情報はELF固有のものが多いのでreadelfを使ったほうがよくて、実際のデータ部分を解析する場合は、objdumpを使ったほうがよいように思う。
+</p>
 
 <p class="kokomade"> (ここまで書いた )</p>
 
@@ -1649,8 +1772,6 @@ Disassembly of section .rodata:
   セクションごとにまとめて、アドレスを与えて結合していく。
 </p>
 
-
-<p> 途中なんだけど何を書くつもりだったか思い出せない… </p>
 
   <h3> 実行ファイル、セグメント </h3>
 
