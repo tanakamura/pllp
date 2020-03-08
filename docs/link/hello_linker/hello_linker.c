@@ -25,6 +25,15 @@ struct reloc {                  /* リンク後に解決すべきリロケーシ
     uintptr_t offset;           /* セクション中のオフセット */
 };
 
+struct resolved_reloc {         /* 名前解決済みリロケーション */
+    int reloc_type;             /* リロケーションの方法 */
+    int reloc_section;          /* このリロケーションのセクション */
+    uintptr_t reloc_offset; /* このリロケーションのセクション内のオフセット */
+
+    int sym_section;      /* 参照先のシンボルのセクション */
+    uintptr_t sym_offset; /* 参照先のシンボルのセクション内のオフセット */
+};
+
 struct section {
     int align;
     int cur_size;               /* 現在出力したサイズ */
@@ -195,7 +204,7 @@ add_elf(struct linker *l,
 
             /* リンク後にアラインされるようにアラインの最大値を保存しておく */
             if (shdr->sh_addralign > l->sections[section].align) {
-                l->section[section].align = shdr->sh_addralign;
+                l->sections[section].align = shdr->sh_addralign;
             }
 
             /* 現在の先頭位置を保存 */
@@ -227,12 +236,14 @@ add_elf(struct linker *l,
         exit(1);
     }
 
+    char *syms_data = 0;
+
     for (int si=0; si<ehdr->e_shnum; si++) {
         Elf64_Shdr *shdr = get_shdr(ehdr, si);
 
         if (shdr->sh_type == SHT_SYMTAB) {
             /* シンボルが入っている */
-            char *syms_data = get_section_contents(ehdr, shdr);
+            syms_data = get_section_contents(ehdr, shdr);
 
             /* 含まれるシンボルの数はセクションのサイズをエントリのサイズで割ったもの */
             int num_symbol = shdr->sh_size / shdr->sh_entsize;
@@ -255,7 +266,7 @@ add_elf(struct linker *l,
 
                     struct symtab *symtab = &l->global;
                     int bind = ELF64_ST_BIND(sym->st_info);
-                    int type = ELF64_ST_TYPE(sym->st_info);
+                    //int type = ELF64_ST_TYPE(sym->st_info);
 
                     switch (bind) {
                     case STB_LOCAL:
@@ -297,6 +308,25 @@ add_elf(struct linker *l,
                 }
             }
         }
+    }
+
+    for (int si=0; si<ehdr->e_shnum; si++) {
+        /* ローカルなリロケーションを解決する 
+         * 解決できないリロケーションは保存してあとまわしにする
+         */
+
+        Elf64_Shdr *shdr = get_shdr(ehdr, si);
+        if (shdr->sh_type == SHT_REL) {
+            /* オフセット加算無しリロケーション */
+        } else if (shdr->sh_type == SHT_RELA) {
+            /* オフセット加算付きリロケーション */
+            
+        }
+    }
+
+    if (syms_data == 0) {
+        printf("%s : シンボルテーブルが見つかりません\n", path);
+        exit(1);
     }
 }
 
