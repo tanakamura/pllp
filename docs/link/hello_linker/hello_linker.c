@@ -21,8 +21,9 @@ struct symbol {                 /* 定義済みシンボル */
 struct reloc {                  /* リンク後に解決すべきリロケーション */
     char sym[MAX_SYMBOL_LEN + 1]; /* シンボル文字列 */
     int reloc_type;             /* リロケーションの方法 */
-    int section;                /* 所属するセクション */
-    uintptr_t offset;           /* セクション中のオフセット */
+    int reloc_section;          /* 所属するセクション */
+    uintptr_t reloc_offset;     /* セクション中のオフセット */
+    intptr_t addend;           /* 参照先オフセット */
 };
 
 struct resolved_reloc {         /* 名前解決済みリロケーション */
@@ -30,8 +31,8 @@ struct resolved_reloc {         /* 名前解決済みリロケーション */
     int reloc_section;          /* このリロケーションのセクション */
     uintptr_t reloc_offset; /* このリロケーションのセクション内のオフセット */
 
-    int sym_section;      /* 参照先のシンボルのセクション */
-    uintptr_t sym_offset; /* 参照先のシンボルのセクション内のオフセット */
+    int ref_section;      /* 参照先のシンボルのセクション */
+    uintptr_t ref_offset; /* 参照先のシンボルのセクション内のオフセット */
 };
 
 struct section {
@@ -86,10 +87,20 @@ struct linker {
     int num_reloc;
     struct reloc relocs[MAX_RELOC_NUM];
 
+    int num_resolved_reloc;
+    struct resolved_reloc resolved_relocs[MAX_RELOC_NUM];
+
     struct section sections[4];
     struct segment segments[3];
 
+    const char *file_path;
     char file_buffer[MAX_FILE_SIZE];
+
+    Elf64_Ehdr *cur_elf_ehdr;
+    char *cur_elf_shstrtab;
+    char *cur_elf_strtab;
+    int cur_elf_symtab_entsize;
+    char *cur_elf_symtab;
 };
 
 static void
@@ -97,6 +108,7 @@ init_linker(struct linker *l) {
     l->local.num_symbol = 0;
     l->global.num_symbol = 0;
     l->num_reloc = 0;
+    l->num_resolved_reloc = 0;
     for (int i=0; i<4; i++) {
         l->sections[i].cur_size = 0;
         l->sections[i].align = 0;
@@ -119,7 +131,16 @@ get_shdr(Elf64_Ehdr *ehdr, int index)
     /* N番目のセクションヘッダはセクションヘッダの先頭から e_shentsize * N したところにある */
     return (Elf64_Shdr*)(shent + ehdr->e_shentsize * index);
 }
-         
+
+static int
+shdr_index_to_section_index(struct linker *l, int shdr_index)
+{
+    Elf64_Shdr *sec = get_shdr(l->cur_elf_ehdr, shdr_index);
+    const char *sec_name = l->cur_elf_shstrtab + sec->sh_name;
+
+    return section_name_to_index(sec_name);
+}
+
 static char *
 get_section_contents(Elf64_Ehdr *ehdr,
                      Elf64_Shdr *shdr)
@@ -128,11 +149,165 @@ get_section_contents(Elf64_Ehdr *ehdr,
     return ((char*)ehdr) + shdr->sh_offset;
 }
 
+static Elf64_Sym *
+get_elf_sym(struct linker *l, int sym_idx)
+{
+    return (Elf64_Sym*)(l->cur_elf_symtab + sym_idx * l->cur_elf_symtab_entsize);
+}
+
+/* シンボル文字列から定義済みシンボルの情報を取得 */
+static struct symbol *
+lookup_symtab(struct linker *l,
+              const char *symstr)
+{
+    for (int i=0; i<l->local.num_symbol; i++) {
+        if (strcmp(l->local.symbols[i].sym, symstr) == 0) {
+            return &l->local.symbols[i];
+        }
+    }
+
+    for (int i=0; i<l->global.num_symbol; i++) {
+        if (strcmp(l->global.symbols[i].sym, symstr) == 0) {
+            return &l->global.symbols[i];
+        }
+    }
+
+    return NULL;
+}
+
+static void
+add_resolved_reloc(struct linker *l,
+                   int type,
+                   int from_section,
+                   uintptr_t from_offset,
+                   int to_section,
+                   uintptr_t to_offset)
+{
+    int ri = l->num_resolved_reloc;
+    if (ri == MAX_RELOC_NUM) {
+        printf("%s : リロケーションが多すぎます\n", l->file_path);
+        exit(1);
+    }
+
+    l->num_resolved_reloc ++;
+    struct resolved_reloc *rr = &l->resolved_relocs[ri];
+
+    rr->reloc_type = type;
+
+    /* リロケーションのアドレス */
+    rr->reloc_section = from_section;
+    rr->reloc_offset = from_offset;
+
+    /* 参照アドレス */
+    rr->ref_section = to_section;
+    rr->ref_offset = to_offset;
+
+    printf("%d.%d -> %d.%d\n",
+           (int)from_section,
+           (int)from_offset,
+           (int)to_section,
+           (int)to_offset);
+}
+
+static void
+add_unresolved_reloc(struct linker *l,
+                     const char *symstr,
+                     int type,
+                     int from_section,
+                     uintptr_t from_offset,
+                     uintptr_t addend)
+{
+    int ri = l->num_reloc;
+    if (ri == MAX_RELOC_NUM) {
+        printf("%s : リロケーションが多すぎます\n", l->file_path);
+        exit(1);
+    }
+
+    l->num_reloc ++;
+    struct reloc *r = &l->relocs[ri];
+
+    r->reloc_type = type;
+    size_t len = strlen(symstr);
+    if (len >= MAX_SYMBOL_LEN) {
+        printf("%s : シンボルが長すぎます\n", symstr);
+        exit(1);
+    }
+    memcpy(r->sym, symstr, len + 1);
+
+    /* リロケーションのアドレス */
+    r->reloc_section = from_section;
+    r->reloc_offset = from_offset;
+    r->addend = addend;
+
+    printf("%d.%d -> %s + %d\n",
+           (int)from_section,
+           (int)from_offset,
+           symstr, (int)addend);
+}
+
+
+static void
+add_reloc(struct linker *l,
+          int from_section,  /* このrelocで書きかえるセクション(参照元) */
+          uintptr_t offset,
+          int type,
+          uint64_t sym,
+          intptr_t addend
+          )
+{
+    Elf64_Sym *elf_sym = get_elf_sym(l, sym);
+    int sym_type = ELF64_ST_TYPE(elf_sym->st_info);
+    struct section *ref_from = &l->sections[from_section];
+    /* 参照元のアドレス : リロケーションに含まれるオフセット + 参照元のセクション位置 */
+    uint64_t from_offset = ref_from->cur_file_offset + offset;
+
+    if (elf_sym->st_shndx != SHN_UNDEF)
+    {
+        /* 定義済みシンボル(この場合はファイル内で定義されたシンボル)を参照するリロケーション */
+
+        Elf64_Shdr *sec = get_shdr(l->cur_elf_ehdr, elf_sym->st_shndx);
+        int to_section = section_name_to_index(l->cur_elf_shstrtab + sec->sh_name);
+        struct section *ref_to = &l->sections[to_section];
+
+        /* 参照先のアドレス : 参照するシンボルのオフセット + 参照先のセクション位置 */
+        uint64_t to_offset = ref_to->cur_file_offset + addend + elf_sym->st_value;
+
+        add_resolved_reloc(l,
+                           type,
+                           from_section, from_offset,
+                           to_section, to_offset);
+    } else {
+        /* 未定義シンボルを参照するリロケーション */
+        const char *sym_str = l->cur_elf_strtab + elf_sym->st_name;
+        struct symbol *s = lookup_symtab(l, sym_str);
+
+        if (s == NULL) {
+            /* 未定義シンボル */
+            add_unresolved_reloc(l, sym_str, type, from_section, from_offset, addend);
+        } else {
+            /* リンク済みファイルの中で定義されたシンボル */
+            add_resolved_reloc(l,
+                               type,
+                               from_section, from_offset,
+                               s->section, s->offset + addend);
+        }
+    }
+}
+
+
+
+
 static void
 add_elf(struct linker *l,
         const char *path)
 {
+    l->file_path = path;
     l->local.num_symbol = 0;    /* ローカルシンボルテーブル初期化 */
+    l->cur_elf_symtab_entsize = 0;
+    l->cur_elf_symtab = NULL;
+    l->cur_elf_strtab = NULL;
+    l->cur_elf_shstrtab = NULL;
+    l->cur_elf_ehdr = NULL;
 
     FILE *fp = fopen(path, "rb");
     if (fp == 0) {
@@ -149,6 +324,7 @@ add_elf(struct linker *l,
     }
 
     Elf64_Ehdr *ehdr = (Elf64_Ehdr*)l->file_buffer;
+    l->cur_elf_ehdr = ehdr;
 
     /* ELF ファイルの先頭4byte は 0x7f, 'E', 'L', 'F' */
     if ((ehdr->e_ident[0] != 0x7f) ||
@@ -176,7 +352,7 @@ add_elf(struct linker *l,
     /* ラベル等の文字列データは e_shstrndx 番目のセクションに格納されている */
     Elf64_Shdr *shstrtab = get_shdr(ehdr, ehdr->e_shstrndx);
     char *shstrtab_data = get_section_contents(ehdr, shstrtab);
-
+    l->cur_elf_shstrtab = shstrtab_data;
     char *strtab_data = 0;
 
 
@@ -230,11 +406,13 @@ add_elf(struct linker *l,
             }
         }
     }
-    
+
     if (strtab_data == 0) {
         printf("%s : .strtab セクションが見つかりません\n", path);
         exit(1);
     }
+
+    l->cur_elf_strtab = strtab_data;
 
     char *syms_data = 0;
 
@@ -244,6 +422,9 @@ add_elf(struct linker *l,
         if (shdr->sh_type == SHT_SYMTAB) {
             /* シンボルが入っている */
             syms_data = get_section_contents(ehdr, shdr);
+
+            l->cur_elf_symtab = syms_data;
+            l->cur_elf_symtab_entsize = shdr->sh_entsize;
 
             /* 含まれるシンボルの数はセクションのサイズをエントリのサイズで割ったもの */
             int num_symbol = shdr->sh_size / shdr->sh_entsize;
@@ -316,11 +497,35 @@ add_elf(struct linker *l,
          */
 
         Elf64_Shdr *shdr = get_shdr(ehdr, si);
+
+        size_t entsize = shdr->sh_entsize;
+        size_t total_size = shdr->sh_size;
+
+        if (entsize == 0) {
+            continue;
+        }
+        size_t nentry = total_size / entsize;
+        char *rel_data = get_section_contents(ehdr, shdr);
+        int reloc_section = shdr_index_to_section_index(l, shdr->sh_info);
+
         if (shdr->sh_type == SHT_REL) {
             /* オフセット加算無しリロケーション */
+            for (size_t i=0; i<nentry; i++) {
+                Elf64_Rel *rel = (Elf64_Rel*)(rel_data + entsize*i);
+                uint64_t type = ELF64_R_TYPE(rel->r_info);
+                uint64_t sym = ELF64_R_SYM(rel->r_info);
+
+                add_reloc(l, reloc_section, rel->r_offset, type, sym, 0);
+            }
         } else if (shdr->sh_type == SHT_RELA) {
             /* オフセット加算付きリロケーション */
-            
+            for (size_t i=0; i<nentry; i++) {
+                Elf64_Rela *rel = (Elf64_Rela*)(rel_data + entsize*i);
+                uint64_t type = ELF64_R_TYPE(rel->r_info);
+                uint64_t sym = ELF64_R_SYM(rel->r_info);
+
+                add_reloc(l, reloc_section, rel->r_offset, type, sym, rel->r_addend);
+            }
         }
     }
 
@@ -363,7 +568,6 @@ main(int argc, char **argv)
             }
         } else {
             add_elf(&l, argv[opt]);
-
             opt ++;
         }
     }
