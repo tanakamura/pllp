@@ -3,6 +3,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <sys/stat.h>
+
+#define START_SYMBOL "_start"
+#define START_ADDR 0x401000ULL
 
 #define MAX_SYMBOL_NUM 1024
 #define MAX_RELOC_NUM 1024
@@ -38,21 +42,33 @@ struct resolved_reloc {         /* 名前解決済みリロケーション */
 struct section {
     int align;
     int cur_size;               /* 現在出力したサイズ */
+    int segment;                /* 所属するセグメント */
     char buffer[MAX_SECTION_SIZE]; /* 出力したデータ */
 
-    int cur_file_offset;        /* 今の入力ファイルでのセクションのオフセット */
+    uintptr_t cur_file_offset;        /* 今の入力ファイルでのセクションのオフセット */
+    uintptr_t runtime_addr;
+    uintptr_t offset_in_segment;
 };
 
 struct segment {
-    int cur_alloc_size;         /* bssを含む出力したサイズ */
-    int cur_contents_size;      /* bssを含まない出力したサイズ */
+    uintptr_t addr;
+    uintptr_t cur_alloc_size;         /* bssを含む出力したサイズ */
+    uintptr_t cur_contents_size;      /* bssを含まない出力したサイズ */
+    uintptr_t output_file_offset;     /* 出力ファイル中のバイト位置 */
     char buffer[MAX_SEGMENT_SIZE]; /* 出力したデータ */
 };
 
 #define TEXT_SECTION 0
-#define DATA_SECTION 1
-#define RODATA_SECTION 2
+#define RODATA_SECTION 1
+#define DATA_SECTION 2
 #define BSS_SECTION 3
+
+static const char *section_name_table[] = {
+    ".text",
+    ".rodata",
+    ".data",
+    ".bss"
+};
 
 static int
 section_name_to_index(const char *section_name) {
@@ -75,6 +91,7 @@ section_name_to_index(const char *section_name) {
 #define EXEC_SEGMENT 0
 #define RO_SEGMENT 1
 #define RW_SEGMENT 2
+#define NUM_SEGMENT 3
 
 struct symtab {
     int num_symbol;
@@ -82,6 +99,7 @@ struct symtab {
 };
 
 struct linker {
+    int verbose;
     struct symtab local,global;
 
     int num_reloc;
@@ -105,6 +123,7 @@ struct linker {
 
 static void
 init_linker(struct linker *l) {
+    l->verbose = 0;
     l->local.num_symbol = 0;
     l->global.num_symbol = 0;
     l->num_reloc = 0;
@@ -158,11 +177,14 @@ get_elf_sym(struct linker *l, int sym_idx)
 /* シンボル文字列から定義済みシンボルの情報を取得 */
 static struct symbol *
 lookup_symtab(struct linker *l,
-              const char *symstr)
+              const char *symstr,
+              int global_only)
 {
-    for (int i=0; i<l->local.num_symbol; i++) {
-        if (strcmp(l->local.symbols[i].sym, symstr) == 0) {
-            return &l->local.symbols[i];
+    if (! global_only) {
+        for (int i=0; i<l->local.num_symbol; i++) {
+            if (strcmp(l->local.symbols[i].sym, symstr) == 0) {
+                return &l->local.symbols[i];
+            }
         }
     }
 
@@ -201,12 +223,6 @@ add_resolved_reloc(struct linker *l,
     /* 参照アドレス */
     rr->ref_section = to_section;
     rr->ref_offset = to_offset;
-
-    printf("%d.%d -> %d.%d\n",
-           (int)from_section,
-           (int)from_offset,
-           (int)to_section,
-           (int)to_offset);
 }
 
 static void
@@ -238,11 +254,6 @@ add_unresolved_reloc(struct linker *l,
     r->reloc_section = from_section;
     r->reloc_offset = from_offset;
     r->addend = addend;
-
-    printf("%d.%d -> %s + %d\n",
-           (int)from_section,
-           (int)from_offset,
-           symstr, (int)addend);
 }
 
 
@@ -256,7 +267,6 @@ add_reloc(struct linker *l,
           )
 {
     Elf64_Sym *elf_sym = get_elf_sym(l, sym);
-    int sym_type = ELF64_ST_TYPE(elf_sym->st_info);
     struct section *ref_from = &l->sections[from_section];
     /* 参照元のアドレス : リロケーションに含まれるオフセット + 参照元のセクション位置 */
     uint64_t from_offset = ref_from->cur_file_offset + offset;
@@ -279,7 +289,7 @@ add_reloc(struct linker *l,
     } else {
         /* 未定義シンボルを参照するリロケーション */
         const char *sym_str = l->cur_elf_strtab + elf_sym->st_name;
-        struct symbol *s = lookup_symtab(l, sym_str);
+        struct symbol *s = lookup_symtab(l, sym_str, 0);
 
         if (s == NULL) {
             /* 未定義シンボル */
@@ -319,7 +329,7 @@ add_elf(struct linker *l,
     fclose(fp);
 
     if (rdsz == MAX_FILE_SIZE) {
-        printf("%s : ファイルサイズが多きすぎます\n", path);
+        printf("%s : ファイルサイズが大きすぎます\n", path);
         exit(1);
     }
 
@@ -349,7 +359,7 @@ add_elf(struct linker *l,
         exit(1);
     }
 
-    /* ラベル等の文字列データは e_shstrndx 番目のセクションに格納されている */
+    /* セクション名の文字列データは e_shstrndx 番目のセクションに格納されている */
     Elf64_Shdr *shstrtab = get_shdr(ehdr, ehdr->e_shstrndx);
     char *shstrtab_data = get_section_contents(ehdr, shstrtab);
     l->cur_elf_shstrtab = shstrtab_data;
@@ -470,6 +480,26 @@ add_elf(struct linker *l,
                         exit(1);
                     }
 
+                    Elf64_Shdr *sym_section = get_shdr(ehdr, sym->st_shndx);
+                    char *sym_section_name = shstrtab_data + sym_section->sh_name;
+                    int section = section_name_to_index(sym_section_name);
+                    uintptr_t sym_offset = sym->st_value + l->sections[section].cur_file_offset;
+
+                    struct symbol *s = lookup_symtab(l, name, 0);
+                    if (s != NULL) {
+                        /* これがよく見かけるエラー
+                         *  'multiple definition of XXXX
+                         * の正体だ!
+                         * 一個のシンボルが複数の箇所で定義されている 
+                         */
+                        printf("%s %s+%lld: シンボル('%s')が複数回定義されました\n",
+                               l->file_path,
+                               section_name_table[section],
+                               (long long)sym->st_value,
+                               name);
+                        exit(1);
+                    }
+
                     /* 定義済みシンボルを登録する */
                     struct symbol *dst = &symtab->symbols[symtab->num_symbol];
                     symtab->num_symbol++;
@@ -479,21 +509,23 @@ add_elf(struct linker *l,
                         exit(1);
                     }
 
-                    Elf64_Shdr *sym_section = get_shdr(ehdr, sym->st_shndx);
-                    char *sym_section_name = shstrtab_data + sym_section->sh_name;
-                    int section = section_name_to_index(sym_section_name);
 
                     strcpy(dst->sym, name);
                     dst->section = section;
-                    dst->offset = sym->st_value + l->sections[section].cur_file_offset;
+                    dst->offset = sym_offset;
                 }
             }
         }
     }
 
+    if (syms_data == 0) {
+        printf("%s : シンボルテーブルが見つかりません\n", path);
+        exit(1);
+    }
+
     for (int si=0; si<ehdr->e_shnum; si++) {
-        /* ローカルなリロケーションを解決する 
-         * 解決できないリロケーションは保存してあとまわしにする
+        /* ローカルなリロケーションを解決する (resolved_relocsに入れる)
+         * 解決できないリロケーションは保存してあとまわしにする (unresolved_relocsに入れる)
          */
 
         Elf64_Shdr *shdr = get_shdr(ehdr, si);
@@ -528,11 +560,6 @@ add_elf(struct linker *l,
             }
         }
     }
-
-    if (syms_data == 0) {
-        printf("%s : シンボルテーブルが見つかりません\n", path);
-        exit(1);
-    }
 }
 
 static void
@@ -540,6 +567,97 @@ usage()
 {
     puts("hello_linker [-o output_file] input_file input_file ..");
 }
+
+
+static void
+add_section_to_segment(struct linker *l,
+                       int segment_index,
+                       struct section *sec,
+                       uintptr_t segment_start_addr,
+                       int have_content)
+{
+    struct segment *seg = &l->segments[segment_index];
+    sec->segment = segment_index;
+
+    if (have_content) {
+        memcpy(seg->buffer + seg->cur_alloc_size,
+               sec->buffer,
+               sec->cur_size);
+        seg->cur_contents_size += sec->cur_size;
+    }
+
+    sec->runtime_addr = segment_start_addr + seg->cur_alloc_size;
+    sec->offset_in_segment = seg->cur_alloc_size;
+
+    seg->cur_alloc_size += sec->cur_size;
+}
+
+static uintptr_t
+align_to_4k(uintptr_t p)
+{
+    return (p + 4095)&~(uintptr_t)4095;
+}
+
+static void
+fixup_reloc(struct linker *l,
+            struct segment *seg,
+            uintptr_t reloc_offset,
+            int reloc_type,
+            uintptr_t to_addr)
+{
+    /* note :
+     *  *(int32_t*)insert_addr = (int32_t)val;
+     * このアドレスの埋めかたはアラインが取れないことがあるので
+     * x86以外では使えないことがある。
+     * アラインが取れていないアクセスを許さないCPUでは1byteずつ埋めていくこと
+     */
+
+    char *insert_addr = &seg->buffer[reloc_offset];
+    uintptr_t reloc_runtime_addr = seg->addr + reloc_offset;
+    intptr_t delta;
+
+    switch (reloc_type) {
+    case R_X86_64_PLT32:
+        /* 今のアドレスと参照アドレスの相対値32bit値を入れる */
+        delta = to_addr - reloc_runtime_addr;
+        *(int32_t*)insert_addr = delta;
+        if (l->verbose) {
+            printf("resolve reloc (R_X86_64_PLT32) : from=%llx, to=%llx, delta=%lld(%x)\n",
+                   (long long)reloc_runtime_addr,
+                   (long long)to_addr,
+                   (long long)delta,
+                   (int)delta);
+        }
+        break;
+
+    case R_X86_64_32S:
+        /* 絶対アドレスの32bit値を入れる */
+        *(int32_t*)insert_addr = (int32_t)to_addr;
+        if (l->verbose) {
+            printf("resolve reloc (R_X86_64_32S) : from=%llx, to=%llx\n",
+                   (long long)reloc_runtime_addr,
+                   (long long)to_addr);
+        }
+        break;
+
+    case R_X86_64_64:
+        /* 絶対アドレスの64bit値を入れる */
+        *(uint64_t*)insert_addr = (uint64_t)to_addr;
+        if (l->verbose) {
+            printf("resolve reloc (R_X86_64_64) : from=%llx, to=%llx\n",
+                   (long long)reloc_runtime_addr,
+                   (long long)to_addr);
+        }
+        break;
+
+    default:
+        printf("TODO : サポートされないリロケーション(%d) です\n",
+               reloc_type);
+
+        exit(1);
+    }
+}
+
 
 int
 main(int argc, char **argv)
@@ -562,6 +680,11 @@ main(int argc, char **argv)
                 opt+=2;
                 break;
 
+            case 'v':
+                l.verbose = 1;
+                opt+=1;
+                break;
+
             default:
                 usage();
                 return 1;
@@ -571,4 +694,258 @@ main(int argc, char **argv)
             opt ++;
         }
     }
+
+    /* セクションサイズが確定したので、実行時のアドレスを決めていく */
+
+    uintptr_t cur_runtime_addr = START_ADDR;  /* 実行時のアドレス (これが実際に使うアドレス) */
+
+    /* 実行プログラムセグメント */
+    l.segments[EXEC_SEGMENT].addr = cur_runtime_addr;
+    add_section_to_segment(&l,
+                           EXEC_SEGMENT,
+                           &l.sections[TEXT_SECTION],
+                           cur_runtime_addr,
+                           1);
+    l.sections[TEXT_SECTION].segment = EXEC_SEGMENT;
+    cur_runtime_addr += l.segments[EXEC_SEGMENT].cur_alloc_size;
+
+    /* セグメントはページサイズに揃うべき (これはOSによる) */
+    cur_runtime_addr = align_to_4k(cur_runtime_addr);
+
+    /* 読み込み専用セグメント */
+    l.segments[RO_SEGMENT].addr = cur_runtime_addr;
+    add_section_to_segment(&l,
+                           RO_SEGMENT,
+                           &l.sections[RODATA_SECTION],
+                           cur_runtime_addr,
+                           1);
+    l.sections[RODATA_SECTION].segment = RO_SEGMENT;
+    cur_runtime_addr += l.segments[RO_SEGMENT].cur_alloc_size;
+    cur_runtime_addr = align_to_4k(cur_runtime_addr);
+
+    /* 読み書きデータセグメント */
+    l.segments[RW_SEGMENT].addr = cur_runtime_addr;
+    add_section_to_segment(&l,
+                           RW_SEGMENT,
+                           &l.sections[DATA_SECTION],
+                           cur_runtime_addr,
+                           1);
+
+    /* 本当はセクションタイプ見てhave_content決めないといけないが、
+     * 簡単のために bss = 中身を持たないセクションとする
+     */
+    add_section_to_segment(&l,
+                           RW_SEGMENT,
+                           &l.sections[BSS_SECTION],
+                           cur_runtime_addr,
+                           0);
+
+    /* リンク終了
+     * 全セクションのサイズが確定するので、セクションの先頭アドレスが確定する
+     */
+
+    if (l.verbose) {
+        for (int i=0; i<4; i++) {
+            printf("section[%d] : addr=%llx\n",
+                   i,
+                   (long long)l.sections[i].runtime_addr);
+        }
+
+        for (int i=0; i<3; i++) {
+            printf("seg[%d] : addr=%llx, content=%llx, alloc=%llx\n",
+                   i,
+                   (long long )l.segments[i].addr,
+                   (long long )l.segments[i].cur_contents_size,
+                   (long long )l.segments[i].cur_alloc_size);
+        }
+    }
+
+
+    /* セクションアドレスが確定したので定義済みシンボルにアドレスを割り当てていく */
+    struct symtab *st = &l.global;
+    for (int symi=0; symi<st->num_symbol; symi++) {
+        struct symbol *sym = &st->symbols[symi];
+        uintptr_t section_addr = l.sections[sym->section].runtime_addr;
+        sym->addr = section_addr + sym->offset;
+
+        if (l.verbose) {
+            printf("sym[%s] : addr=%llx\n",
+                   sym->sym,
+                   (long long)sym->addr);
+        }
+    }
+
+    /* 定義済みシンボルのアドレスが確定したのでリロケーションを解決していく */
+
+    for (int ri=0; ri<l.num_reloc; ri++) {
+        struct reloc *rel = &l.relocs[ri];
+        struct symbol *sym = lookup_symtab(&l, rel->sym, 1);
+
+        if (sym == NULL) {
+            /* これがよく見かけるエラー
+             *  'undefined reference to XXXX'
+             * の正体だ!
+             *
+             * 解決しなければいけないリロケーションが参照しているシンボルが
+             * リンクが終了しても未定義シンボルのままになっている
+             */
+
+            printf("%s+%lld : シンボルが定義されていません '%s'\n",
+                   section_name_table[rel->reloc_section],
+                   (long long)rel->reloc_offset,
+                   rel->sym);
+            exit(1);
+        }
+
+        uintptr_t to_addr = sym->addr + rel->addend;
+        struct section *sec = &l.sections[rel->reloc_section];
+
+        fixup_reloc(&l,
+                    &l.segments[sec->segment],
+                    rel->reloc_offset + sec->offset_in_segment,
+                    rel->reloc_type,
+                    to_addr);
+    }
+
+    for (int ri=0; ri<l.num_resolved_reloc; ri++) {
+        struct resolved_reloc *rel = &l.resolved_relocs[ri];
+        struct section *sec = &l.sections[rel->reloc_section];
+
+        struct section *ref_section = &l.sections[rel->ref_section];
+        struct segment *ref_segment = &l.segments[ref_section->segment];
+
+        uintptr_t to_addr = 0;
+        to_addr += rel->ref_offset;
+        to_addr += ref_segment->addr + ref_section->offset_in_segment;
+
+        fixup_reloc(&l,
+                    &l.segments[sec->segment],
+                    rel->reloc_offset + sec->offset_in_segment,
+                    rel->reloc_type,
+                    to_addr);
+    }
+
+    struct symbol *start_sym = lookup_symtab(&l, START_SYMBOL, 1);
+
+    if (start_sym == NULL) {
+        printf("_start が見つかりません\n");
+        exit(1);
+    }
+
+    /* リンク完了！
+     * 結果をファイルに書く
+     */
+
+    char *p = l.file_buffer;
+    uintptr_t file_off = 0;
+
+    Elf64_Ehdr *eh = (Elf64_Ehdr*)p;
+
+    memset(p, 0, sizeof(l.file_buffer));
+
+    strcpy((char*)eh->e_ident, ELFMAG);
+    eh->e_ident[EI_CLASS] = ELFCLASS64;  /* 64bit */
+    eh->e_ident[EI_DATA] = ELFDATA2LSB;  /* little endian */
+    eh->e_ident[EI_VERSION] = EV_CURRENT;
+    eh->e_ident[EI_OSABI] = ELFOSABI_SYSV;
+    eh->e_ident[EI_ABIVERSION] = 0;
+
+    eh->e_type = ET_EXEC;  /* 全部解決したので実行ファイルになる */
+    eh->e_machine = EM_X86_64;
+    eh->e_version = EV_CURRENT;
+
+    /* _startの位置
+     * OSはこれを見てプログラムが最初に実行するときのプログラムカウンタの位置を決める
+     */
+    eh->e_entry = start_sym->addr;
+
+    /* あとで決める  */
+    // eh->e_phoff;
+    // eh->e_shoff;
+
+    eh->e_flags = 0;
+    eh->e_ehsize = sizeof(*eh);
+    eh->e_phentsize = sizeof(Elf64_Phdr);
+    eh->e_phnum = NUM_SEGMENT;
+    eh->e_shentsize = sizeof(Elf64_Shdr);
+    eh->e_shnum = 0;
+    eh->e_shstrndx = 0;
+
+    FILE *fp = fopen(outfile, "wb");
+    if (fp == 0) {
+        perror(outfile);
+        return 1;
+    }
+
+    file_off += sizeof(Elf64_Ehdr);
+
+    eh->e_phoff = file_off;
+
+    Elf64_Phdr *ph = (Elf64_Phdr*)(p + file_off);
+
+    file_off += sizeof(Elf64_Phdr) * NUM_SEGMENT;
+
+    for (int i=0; i<NUM_SEGMENT; i++) {
+        struct segment *seg = &l.segments[i];
+        file_off = align_to_4k(file_off);
+
+        seg->output_file_offset = file_off;
+
+        memcpy(&l.file_buffer[file_off],
+               seg->buffer,
+               seg->cur_contents_size);
+
+        file_off += seg->cur_contents_size;
+    }
+
+    /* 各セグメントの属性を入れる
+     * 本来はリンクするセクションの属性を入れないといけないが、
+     * ここでは伝統的な命名規則に従って入れておく
+     */
+    ph[RW_SEGMENT].p_flags = PF_W | PF_R;
+    ph[RO_SEGMENT].p_flags = PF_R;
+    ph[EXEC_SEGMENT].p_flags = PF_R | PF_X;
+
+    for (int i=0; i<NUM_SEGMENT; i++) {
+        struct segment *seg = &l.segments[i];
+
+        /* これは実行時にロードされるデータ */
+        ph[i].p_type = PT_LOAD;
+
+        /* 出力するファイルに含まれる
+         * このセグメントのデータのファイル中の位置
+         */
+        ph[i].p_offset = seg->output_file_offset;
+
+        /* ロードするアドレス
+         * vaddr と paddr は Linuxなら同じでよい
+         */
+        ph[i].p_vaddr = seg->addr;
+        ph[i].p_paddr = seg->addr;
+
+        /* p_filesz は初期値データのサイズ
+         * p_memsz は実際に割りあてるサイズ
+         *
+         * 基本的には
+         *  - p_filesz は bss を含まない
+         *  - p_memsz は bss を含むサイズ
+         * と覚えればよい
+         */
+        ph[i].p_filesz = seg->cur_contents_size;
+        ph[i].p_memsz = seg->cur_alloc_size;
+
+        ph[i].p_align = 4096;
+    }
+
+
+    fwrite(l.file_buffer,
+           1,
+           file_off,
+           fp);
+    fclose(fp);
+
+    /* 実行属性を付けておく */
+    chmod(outfile, 0755);
+
+    return 0;
 }
