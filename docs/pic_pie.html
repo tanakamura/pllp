@@ -1,0 +1,91 @@
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title> リンカ </title>
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<body>
+
+<p> <a href="index.html"> 戻る </a> </p>
+
+<h2> <a href="asm_language.html"> おまけ : PIC,PIE,shellcode,ASLR </a> </h2>
+
+<p>
+  最後に、知っておくといい話題として、
+  昔からよく使われるPICと呼ばれるプログラムの形式について説明し、
+  メモリ破壊バグが引き置こすshellcodeと、
+  PICを応用してshellcodeの問題を緩和する ASLR,PIE について説明しておこう。
+</p>
+
+<h3> PIC </h3>
+<p>
+  <em>PIC (Position Independent Code:位置独立コード)</em>とは、どんなアドレスに配置されても動作する機械語コードのことだ。
+</p>
+
+<p>ここまで説明してきた機械語プログラムは、PICではなかった。例えば、次のELF実行ファイルを考えよう。</p>
+
+<p> <a href="pic_pie/no_pic.s"> pic_pie/no_pic.s </a> </p>
+
+<pre>
+	.globl	_start
+	.text
+_start:
+	incl	data0
+	mov	$60, %rax
+	syscall
+
+	.data
+data0:
+	.long	8
+</pre>
+
+<pre>
+$ as -o no_pic.o no_pic.s
+$ ld no_pic.o
+$ objdump -d ./a.out
+
+./a.out:     file format elf64-x86-64
+
+
+Disassembly of section .text:
+
+0000000000401000 &lt;_start&gt;:
+  401000:       ff 04 25 00 20 40 00    incl   0x402000
+  401007:       48 c7 c0 3c 00 00 00    mov    $0x3c,%rax
+  40100e:       0f 05                   syscall
+
+</pre>
+
+<p> 次の行に注目してほしい </p>
+
+<pre>
+  401000:       ff 04 25 00 20 40 00    incl   0x402000
+                       # 0x00402000 (注 : リトルエンディアン)
+</pre>
+
+<p> 機械語の中に、data0 のアドレス、0x402000 が書き込まれているのが確認できるだろう。 </p>
+
+<p> 当然だが、このプログラムは、data0 のアドレスが 0x402000 以外になると、正しく動かなくなる。これが、(PICではない)普通の実行ファイルに含まれた機械語だ。 </p>
+
+<p> そうではなく、何らかの方法を使って、プログラムの位置が変わっても同じように実行できるように作った機械語を <em> PIC </em> と呼ぶ。 </p>
+
+<p> PIC になると嬉しい点のうち、伝統的な嬉しい点は、共有ライブラリが実現しやすくなることだ。 </p>
+
+<p> 共有ライブラリを使うと、複数の実行プロセスで同じメモリ上に配置された機械語、データを使えるようになり、使用メモリを減らすことができる。 </p>
+
+<p> しかし、これを実現するためには、単一の機械語を複数のアドレス空間に配置する必要が出てくる。共有ライブラリの中にある機械語は、実行時までアドレスが確定しないのだ。 </p>
+
+<p> (TODO:いい感じの図を入れる) </p>
+
+<p> このため、共有ライブラリを正しく動かそうとするなら、そこに含まれる機械語はどんなアドレスに配置されても正しく動くように作らないといけない、つまり PIC にする必要があるのだ。</p>
+
+<p> C言語でプログラムを書いている場合、-fPIC オプションを付ければ、
+
+
+<p> <a href="index.html"> 戻る </a> </p>
+
+
+
+</body>
+</html>
