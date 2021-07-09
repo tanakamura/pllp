@@ -6,3 +6,13 @@ pre { border: solid 1px;
 em { font-weight: bold; color: red }
 table,td,th { border: solid 1px; }
 .kokomade { color: green; }
+
+
+div.imgbox {
+    max-width: 800pt;
+}
+
+span.gdb-command {
+    font-weight: bold;
+    color : red;
+}
