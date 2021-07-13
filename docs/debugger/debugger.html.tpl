@@ -362,7 +362,7 @@ Contents of the .eh_frame section:
 <p> この取得したアドレスをさきほどのプログラムに入れたらどうなるだろうか。 </p>
 <pre>
 /* debugee1.c のデバッグ情報 */
-const struct VarDebugInfo dummy_debuginfo[] = {
+const struct VarDebugInfo debuginfo_for_debugee1[] = {
     {"int_value", TYPE_INT, 0x404000},
     {"str_value", TYPE_CHAR_PTR, 0x404008},
     {NULL}                              /* 終端 */
@@ -383,9 +383,15 @@ const struct VarDebugInfo dummy_debuginfo[] = {
 {{ end_file('debugger1.c') }}
 
 <p>
-  このプログラムに int_value を指定した場合は、対象プログラム debugee1 の変数int_valueの値が整数値として、
-  str_value を指定した場合は、変数str_valueの値が文字列として表示されることを確認し、この(自分で作った)テーブルが、デバッグ情報のようなものとして機能していることを確認しよう。
+  このプログラムを実行して、
 </p>
+
+<ul>
+  <li> 引数に int_value を指定した場合は、対象プログラム debugee1 の変数int_valueの値が整数値として表示される</li>
+  <li> 引数に str_value を指定した場合は、変数str_valueの値が文字列として表示される </li>
+</ul>
+
+<p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb のprintコマンドのようなものを実行するのに必要な情報として機能していることを確認しよう </p>
 
 <p> <a href="../index.html"> 戻る </a> </p>
 
