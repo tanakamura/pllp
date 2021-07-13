@@ -43,57 +43,12 @@
     ptrace を使えば、それが実現できる。
   </p>
 
-  
-  <p><a href="ptrace1.c"> ptrace1.c </a><p>
-<div class="pygments"><pre><span></span><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;sys/ptrace.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;sys/wait.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;stdint.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;signal.h&gt;</span><span class="cp"></span>
-
-<span class="kt">int</span>
-<span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">argv</span><span class="p">)</span>
-<span class="p">{</span>
-    <span class="kt">uint64_t</span> <span class="n">x</span><span class="p">;</span>
-    <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
-    <span class="k">if</span> <span class="p">(</span> <span class="p">(</span><span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="cm">/* 子プロセス */</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="mh">0xaa55aa55</span><span class="p">;</span>
-
-        <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
-            <span class="n">sleep</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span>
-        <span class="p">}</span>
-    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-        <span class="kt">int</span> <span class="n">st</span><span class="p">;</span>
-
-        <span class="cm">/* 親プロセス */</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="mi">2000</span><span class="p">;</span>
-
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象にする */</span>
-        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>                     <span class="cm">/* 子プロセスが停止するまで待機 */</span>
-
-        <span class="n">x</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%x</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">x</span><span class="p">);</span>
-
-        <span class="n">kill</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">SIGKILL</span><span class="p">);</span>
-    <span class="p">}</span>
-
-    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</pre></div>
-
-  
-  <pre>
- $ gcc -no-pie -g -Wall -o test_prog ptrace1.c
- $ ./test_prog</pre>
-<pre>
-aa55aa55
-</pre>
-
-  
+  {{ start_file("ptrace1.c") }}
+  {{ include_source() }}
+  {{ set_expected("aa55aa55
+") }}
+  {{ gcc_and_run() }}
+  {{ end_file("ptrace1.c") }}
 
 <p>
   まず、PTRACE_ATTACHと対象プロセスのpidを引数にして、ptrace を呼び出す。これで、対象プロセスが操作可能になる。
@@ -117,56 +72,12 @@ aa55aa55
 
 <p> tracee のメモリを書きかえたいときは、PTRACE_POKEDATA を使う </p>
 
-
-<p><a href="ptrace2.c"> ptrace2.c </a><p>
-<div class="pygments"><pre><span></span><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;sys/ptrace.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;sys/wait.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;stdint.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp"></span>
-<span class="cp">#include</span> <span class="cpf">&lt;signal.h&gt;</span><span class="cp"></span>
-
-<span class="kt">int</span>
-<span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">argv</span><span class="p">)</span>
-<span class="p">{</span>
-    <span class="kt">uint64_t</span> <span class="n">x</span><span class="p">;</span>
-    <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
-    <span class="k">if</span> <span class="p">(</span> <span class="p">(</span><span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="cm">/* 子プロセス */</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="mh">0xaa55aa55</span><span class="p">;</span>
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%x</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">x</span><span class="p">);</span>
-    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
-        <span class="kt">int</span> <span class="n">st</span><span class="p">;</span>
-
-        <span class="cm">/* 親プロセス */</span>
-
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象にする */</span>
-        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>                     <span class="cm">/* 子プロセスが停止するまで待機 */</span>
-
-        <span class="kt">uint64_t</span> <span class="n">newdata</span> <span class="o">=</span> <span class="mh">0x88888888</span><span class="p">;</span>
-
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_POKEDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="kt">uintptr_t</span><span class="p">)</span><span class="n">newdata</span><span class="p">);</span>
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_DETACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* 子プロセスを再開 */</span>
-
-        <span class="n">wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">st</span><span class="p">);</span>
-    <span class="p">}</span>
-
-    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
-<span class="p">}</span>
-</pre></div>
-
-
-  <pre>
- $ gcc -no-pie -g -Wall -o test_prog ptrace2.c
- $ ./test_prog</pre>
-<pre>
-88888888
-</pre>
-
-  
-
+{{ start_file("ptrace2.c") }}
+{{ include_source() }}
+{{ set_expected("88888888
+") }}
+  {{ gcc_and_run() }}
+  {{ end_file("ptrace2.c") }}
 
 
 <p> メモリと同様に、traceeのレジスタを読み書きすることができる。読むときはPTRACE_GETREGS、書くときはPTRACE_SETREGSだ。</p>
