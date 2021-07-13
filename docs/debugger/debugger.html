@@ -24,9 +24,7 @@
     実際のデバッガの動作は実行中のプログラムの状態を見れるツール、つまり "プログラムの状態ビューワ" とでも言ったほうが、現実とあっているだろう。
   </p>
 
-  <p>
-    ここでは、外部のプログラムから、プログラムの状態を調べる方法を説明し、それを使うデバッガがどのように動いているかを説明していこう。
-  </p>
+<p> この章では、まず、デバッガが必要とする基本的な操作について説明し、続けてデバッグ情報についても説明する。そのあと、その操作とデバッグ情報を組み合わせて、デバッガの機能を実現する方法について説明していく。 </p>
 
 <h2> ptrace </h2>
 
@@ -396,7 +394,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 value99 = 123456
-[Inferior 1 (process 336175) exited normally]
+[Inferior 1 (process 340606) exited normally]
 </pre>
 
 
@@ -636,7 +634,7 @@ Symbol table '.symtab' contains 10 entries:
 <p> この取得したアドレスをさきほどのプログラムに入れたらどうなるだろうか。 </p>
 <pre>
 /* debugee1.c のデバッグ情報 */
-const struct VarDebugInfo dummy_debuginfo[] = {
+const struct VarDebugInfo debuginfo_for_debugee1[] = {
     {"int_value", TYPE_INT, 0x404000},
     {"str_value", TYPE_CHAR_PTR, 0x404008},
     {NULL}                              /* 終端 */
@@ -790,9 +788,15 @@ str_value:Hello World, var_addr=404008, value_addr=402000
 
 
 <p>
-  このプログラムに int_value を指定した場合は、対象プログラム debugee1 の変数int_valueの値が整数値として、
-  str_value を指定した場合は、変数str_valueの値が文字列として表示されることを確認し、この(自分で作った)テーブルが、デバッグ情報のようなものとして機能していることを確認しよう。
+  このプログラムを実行して、
 </p>
+
+<ul>
+  <li> 引数に int_value を指定した場合は、対象プログラム debugee1 の変数int_valueの値が整数値として表示される</li>
+  <li> 引数に str_value を指定した場合は、変数str_valueの値が文字列として表示される </li>
+</ul>
+
+<p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb のprintコマンドのようなものを実行するのに必要な情報として機能していることを確認しよう </p>
 
 <p> <a href="../index.html"> 戻る </a> </p>
 
