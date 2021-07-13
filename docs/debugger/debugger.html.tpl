@@ -341,7 +341,9 @@ Contents of the .eh_frame section:
   ここでは、dummy_debuginfo には意味のない値が入っているが、ここに意味のある値が入っていたらどうなるだろうか。
 </p>
 
-<p> 次のプログラムをコンパイルして、readelf -s を使って、int_value, str_value のアドレスを取得しよう。</p>
+<p> 次のプログラムをコンパイルしたのち、readelf -s を使って、int_value, str_value のアドレスを取得しよう。
+  (実行ファイルを簡単にするため、libcとスタートアップルーチンをリンクしていない。これの意味については<a href="../linker.html">リンカの章</a>を参照のこと)
+ </p>
 
 {{ start_file("debugee1.c") }}
 {{ include_source() }}
@@ -349,9 +351,9 @@ Contents of the .eh_frame section:
 {{ run_cmd(["readelf","-s","debugee1"]) }}
 
 <pre>
- $ readelf -s a.out | grep int_value | awk '{print $2}' # 変数 int_value のアドレス
+ $ readelf -s debugee1 | grep int_value | awk '{print $2}' # 変数 int_value のアドレス
 0000000000404000
- $ readelf -s a.out | grep str_value | awk '{print $2}' # 変数 str_value のアドレス
+ $ readelf -s debugee1 | grep str_value | awk '{print $2}' # 変数 str_value のアドレス
 0000000000404008
 </pre>
 
@@ -367,9 +369,9 @@ const struct VarDebugInfo dummy_debuginfo[] = {
 };
 </pre>
 
-<p> これは、もはやダミーのデバッグ情報ではなく、debugee1 というプログラムのためのデバッグ情報になるのだ。 </p>
+<p> これは、もはやダミーの情報ではなく、debugee1 というプログラムのための情報になるのだ。 </p>
 
-<p> この debugee1 というプログラムのデバッグ情報を使って、gdb の print 相当の機能を実装してみよう。 </p>
+<p> このテーブルを使って、gdb の print 相当の機能を実装してみよう。 </p>
 
 {{ start_file('debugger1.c') }}
 {{ include_source() }}

@@ -396,7 +396,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 value99 = 123456
-[Inferior 1 (process 335177) exited normally]
+[Inferior 1 (process 336175) exited normally]
 </pre>
 
 
@@ -586,7 +586,9 @@ sym: str_value, type:char*, addr=0x0000000000008008
   ここでは、dummy_debuginfo には意味のない値が入っているが、ここに意味のある値が入っていたらどうなるだろうか。
 </p>
 
-<p> 次のプログラムをコンパイルして、readelf -s を使って、int_value, str_value のアドレスを取得しよう。</p>
+<p> 次のプログラムをコンパイルしたのち、readelf -s を使って、int_value, str_value のアドレスを取得しよう。
+  (実行ファイルを簡単にするため、libcとスタートアップルーチンをリンクしていない。これの意味については<a href="../linker.html">リンカの章</a>を参照のこと)
+ </p>
 
 
 <p><a href="debugee1.c"> debugee1.c </a><p>
@@ -623,9 +625,9 @@ Symbol table '.symtab' contains 10 entries:
 
 
 <pre>
- $ readelf -s a.out | grep int_value | awk '{print $2}' # 変数 int_value のアドレス
+ $ readelf -s debugee1 | grep int_value | awk '{print $2}' # 変数 int_value のアドレス
 0000000000404000
- $ readelf -s a.out | grep str_value | awk '{print $2}' # 変数 str_value のアドレス
+ $ readelf -s debugee1 | grep str_value | awk '{print $2}' # 変数 str_value のアドレス
 0000000000404008
 </pre>
 
@@ -641,9 +643,9 @@ const struct VarDebugInfo dummy_debuginfo[] = {
 };
 </pre>
 
-<p> これは、もはやダミーのデバッグ情報ではなく、debugee1 というプログラムのためのデバッグ情報になるのだ。 </p>
+<p> これは、もはやダミーの情報ではなく、debugee1 というプログラムのための情報になるのだ。 </p>
 
-<p> この debugee1 というプログラムのデバッグ情報を使って、gdb の print 相当の機能を実装してみよう。 </p>
+<p> このテーブルを使って、gdb の print 相当の機能を実装してみよう。 </p>
 
 
 <p><a href="debugger1.c"> debugger1.c </a><p>
