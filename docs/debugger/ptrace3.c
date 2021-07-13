@@ -19,7 +19,7 @@ main(int argc, char **argv)
 
         /* 親プロセス */
 
-        sleep(1);
+        usleep(1000);
         ptrace(PTRACE_ATTACH, pid, 0, 0); /* 子プロセスを監視対象にする */
         waitpid(pid, &st, 0);  /* 子プロセスが停止するまで待機 */
 

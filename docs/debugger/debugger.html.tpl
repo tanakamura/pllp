@@ -12,7 +12,7 @@
 
 <p> <a href="../index.html"> 戻る </a> </p>
 
-<h2> <a href="debugger.html"> デバッガ </a> </h2>
+<h1> <a href="debugger.html"> デバッガ </a> </h1>
 
   <p>
     さて、これまで何度も使ってきたgdb、つまりデバッガだが、これがどのように動いているかを見ていこう。
@@ -229,33 +229,163 @@
 <h3> デバッグ情報 </h3>
 
 <p>
-  デバッガの機能で最も興味深いのは、<em>変数や関数が存在するかのように見える</em> 点ではないだろうか。
-</p>
-
-<p>
-  少し考えて欲しいが、CPUが実行しているときに見ているのは、アドレスと機械語だけで、CPUは、どれが関数で、どれが変数で、その型はなにか、とかいったようなものはCPUから見ると存在していないのだ。では、何故、デバッガは、実行中のプログラムに、変数や関数がさも本当に存在しているかのように扱えるのだろうか。
+  デバッガの機能で興味深いのは、<em>変数や関数が存在するかのように見える</em> 点ではないだろうか。
 </p>
 
 {{ start_file("print-a.c") }}
 {{ include_source() }}
 {{ gcc('-no-pie -g -Wall') }}
-{{ gdb('start','print value99','print helloworld') }}
-{{ end_file("print-a.c") }}
+{{ gdb('start','print value99','print helloworld', 'set value99=123456', 'continue') }}
 
 <pre>
 (gdb) <span class="gdb-command">print value99 # 変数名 "value99" が使える</span>
 </pre>
 
-<p> gdb が、変数 "value99","helloworld" という名前をそのまま使えていることを確認してほしい。さらに、変数の型に応じて、適切な表示方法を採用しているのも確認してほしい。
-int型の変数に対しては、数字を表示し、char*型の変数に対しては、文字列を表示している。
+<p> gdb が、変数 "value99","helloworld" という変数の名前をそのまま使えていることを確認してほしい。
+  さらに、変数の型に応じて、適切な表示方法を採用しているのも確認してほしい。
+  int型の変数に対しては、数字を表示し、char*型の変数に対しては、文字列を表示している。
 </p>
 
 <p>
-  これを実現するために、コンパイラやリンカは、<em> デバッグ情報 </em> と呼ばれる、
+  CPUが実行する時に使うデータは、メモリ上に展開されたバイナリデータだけで、操作するデータの変数名や型などは、実行時には必要ではない。
+  ところが、デバッガからプログラムを実行すると、そこに変数名や型が存在するかのようにプログラムの状態を操作できるのだ。これはどうやっているのだろうか。
+</p>
+
+<p>
+  これを実現するために、コンパイラやリンカは、実行ファイルの出力時に、<em>デバッグ情報</em>と呼ばれる、デバッガを補助するための追加のデータを、実行ファイルに含めて出力する。(Visual Studio のコンパイラでは、実行ファイルとは別に出力される)
+</p>
+
+{{ gcc('-no-pie -g -Wall') }}
+{{ end_file("print-a.c") }}
+
+<p> ここでは、コンパイル時に <em>-g</em> を付けている点に注意してほしい。この <em>-g</em> は、デバッグ情報を生成するようにgccに指示するオプションだ。これを付けると、gccとリンカは、出力される実行ファイルにデバッグ情報を追加する。</p>
+
+<p> デバッグ情報の中身を見てみよう。デバッグ情報は readelf に -w オプションを付けるか、objdump に -g オプションを付けると見ることができる。どちらも同じものが表示されるので、以下では readelf -w を使うことにする。 </p>
+
+<pre>
+ $ readelf -w print-a
+Contents of the .eh_frame section:
+
+
+00000000 0000000000000014 00000000 CIE
+  Version:               1
+  Augmentation:          "zR"
+  Code alignment factor: 1
+  Data alignment factor: -8
+  Return address column: 16
+  Augmentation data:     1b
+  DW_CFA_def_cfa: r7 (rsp) ofs 8
+  DW_CFA_offset: r16 (rip) at cfa-8
+  DW_CFA_nop
+  DW_CFA_nop
+
+... (以下大量の出力) ...
+</pre>
+
+<p> たった8行のプログラムにしては、かなりの量の情報がある。ここには一体何が含まれているのだろうか。以下では、このデバッグ情報の中身について説明していこう。 </p>
+
+<h4> シンボルからアドレスと型情報への変換 </h4>
+
+<p>
+  デバッグ情報には、どういう情報を含めておけばよいだろうか。まず、print-a の例で説明したような、
+</p>
+
+<pre>
+ (gdb) print value99
+ (gdb) set value99=123456
+</pre>
+
+<p>
+  といったようなコマンドを実現するためには、
+</p>
+
+<ul>
+  <li> シンボル名から機械語中の実行時のアドレスを取得する </li>
+  <li> シンボル名から型情報を取得する </li>
+</ul>
+
+<p>
+  という処理が必要だ。これらの処理ができれば、gdb の print は、
+</p>
+
+<ol>
+  <li> value99 という名前から、型情報とアドレスを取得する </li>
+  <li> ptrace を使って、変数のアドレスから型のサイズ分バイト列を取得する </li>
+  <li> 取得したバイト列を型情報に従って表示する </li>
+</ol>
+
+<p>
+  という手順で実現できる。
+</p>
+
+<p>
+  では、シンボル名からアドレスや型情報を取得するデータとはどのようなものだろうか。
+</p>
+
+<p>
+  次のようなプログラムを考えよう。
+</p>
+
+{{ start_file("dummy-debuginfo.c") }}
+{{ include_source() }}
+
+<p>
+  これは、テーブルから、シンボルの情報を取得するプログラムだ。ここでは、値は特に意味のない値だが、文字列をプログラムに渡すと、その型とアドレスのようなものが出力されることを確認してほしい。
+</p>
+
+{{ gcc('') }}
+{{ run_cmd(["./dummy-debuginfo", "int_value"], ["./dummy-debuginfo", "str_value"]) }}
+{{ end_file("dummy-debuginfo.c") }}
+
+<p>
+  ここでは、dummy_debuginfo には意味のない値が入っているが、ここに意味のある値が入っていたらどうなるだろうか。
+</p>
+
+<p> 次のプログラムをコンパイルして、readelf -s を使って、int_value, str_value のアドレスを取得しよう。</p>
+
+{{ start_file("debugee1.c") }}
+{{ include_source() }}
+{{ gcc('-no-pie -nostartfiles -nostdlib') }}
+{{ run_cmd(["readelf","-s","debugee1"]) }}
+
+<pre>
+ $ readelf -s a.out | grep int_value | awk '{print $2}' # 変数 int_value のアドレス
+0000000000404000
+ $ readelf -s a.out | grep str_value | awk '{print $2}' # 変数 str_value のアドレス
+0000000000404008
+</pre>
+
+{{ end_file('debugee1.c') }}
+
+<p> この取得したアドレスをさきほどのプログラムに入れたらどうなるだろうか。 </p>
+<pre>
+/* debugee1.c のデバッグ情報 */
+const struct VarDebugInfo dummy_debuginfo[] = {
+    {"int_value", TYPE_INT, 0x404000},
+    {"str_value", TYPE_CHAR_PTR, 0x404008},
+    {NULL}                              /* 終端 */
+};
+</pre>
+
+<p> これは、もはやダミーのデバッグ情報ではなく、debugee1 というプログラムのためのデバッグ情報になるのだ。 </p>
+
+<p> この debugee1 というプログラムのデバッグ情報を使って、gdb の print 相当の機能を実装してみよう。 </p>
+
+{{ start_file('debugger1.c') }}
+{{ include_source() }}
+{{ gcc('') }}
+{{ run_cmd(["./debugger1","int_value"], expected="int_value:1234, addr=404000
+") }}
+{{ run_cmd(["./debugger1","str_value"], expected="str_value:Hello World, var_addr=404008, value_addr=402000
+") }}
+{{ end_file('debugger1.c') }}
+
+<p>
+  このプログラムに int_value を指定した場合は、対象プログラム debugee1 の変数int_valueの値が整数値として、
+  str_value を指定した場合は、変数str_valueの値が文字列として表示されることを確認し、この(自分で作った)テーブルが、デバッグ情報のようなものとして機能していることを確認しよう。
 </p>
 
 <p> <a href="../index.html"> 戻る </a> </p>
-
 
 </body>
 </html>

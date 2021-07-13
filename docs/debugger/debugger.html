@@ -12,7 +12,7 @@
 
 <p> <a href="../index.html"> 戻る </a> </p>
 
-<h2> <a href="debugger.html"> デバッガ </a> </h2>
+<h1> <a href="debugger.html"> デバッガ </a> </h1>
 
   <p>
     さて、これまで何度も使ってきたgdb、つまりデバッガだが、これがどのように動いているかを見ていこう。
@@ -70,7 +70,7 @@
         <span class="cm">/* 親プロセス */</span>
         <span class="n">x</span> <span class="o">=</span> <span class="mi">2000</span><span class="p">;</span>
 
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+        <span class="n">usleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
 
         <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象にする */</span>
         <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>                     <span class="cm">/* 子プロセスが停止するまで待機 */</span>
@@ -87,8 +87,8 @@
 
   
   <pre>
- $ gcc -no-pie -g -Wall -o test_prog ptrace1.c
- $ ./test_prog</pre>
+ $ gcc -Wall -no-pie -o ptrace1 ptrace1.c
+ $ ./ptrace1</pre>
 <pre>
 aa55aa55
 </pre>
@@ -141,7 +141,7 @@ aa55aa55
 
         <span class="cm">/* 親プロセス */</span>
 
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+        <span class="n">usleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
         <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象にする */</span>
         <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>                     <span class="cm">/* 子プロセスが停止するまで待機 */</span>
 
@@ -159,8 +159,8 @@ aa55aa55
 
 
   <pre>
- $ gcc -no-pie -g -Wall -o test_prog ptrace2.c
- $ ./test_prog</pre>
+ $ gcc -Wall -no-pie -o ptrace2 ptrace2.c
+ $ ./ptrace2</pre>
 <pre>
 88888888
 </pre>
@@ -193,7 +193,7 @@ aa55aa55
 
         <span class="cm">/* 親プロセス */</span>
 
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span>
+        <span class="n">usleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
         <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象にする */</span>
         <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* 子プロセスが停止するまで待機 */</span>
 
@@ -210,8 +210,8 @@ aa55aa55
 </pre></div>
 
   <pre>
- $ gcc -no-pie -g -Wall -o test_prog ptrace3.c
- $ ./test_prog</pre>
+ $ gcc -Wall -no-pie -o ptrace3 ptrace3.c
+ $ ./ptrace3</pre>
 <pre>
 rip=00000000004011c1, main=0000000000401186, delta=3b
 </pre>
@@ -360,57 +360,439 @@ rip=00000000004011c1, main=0000000000401186, delta=3b
 <h3> デバッグ情報 </h3>
 
 <p>
-  デバッガの機能で最も興味深いのは、<em>変数や関数が存在するかのように見える</em> 点ではないだろうか。
-</p>
-
-<p>
-  少し考えて欲しいが、CPUが実行しているときに見ているのは、アドレスと機械語だけで、CPUは、どれが関数で、どれが変数で、その型はなにか、とかいったようなものはCPUから見ると存在していないのだ。では、何故、デバッガは、実行中のプログラムに、変数や関数がさも本当に存在しているかのように扱えるのだろうか。
+  デバッガの機能で興味深いのは、<em>変数や関数が存在するかのように見える</em> 点ではないだろうか。
 </p>
 
 
 <p><a href="print-a.c"> print-a.c </a><p>
-<div class="pygments"><pre><span></span><span class="kt">int</span> <span class="n">value99</span> <span class="o">=</span> <span class="mi">99</span><span class="p">;</span>
+<div class="pygments"><pre><span></span><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
+<span class="kt">int</span> <span class="n">value99</span> <span class="o">=</span> <span class="mi">99</span><span class="p">;</span>
 <span class="kt">char</span> <span class="o">*</span><span class="n">helloworld</span> <span class="o">=</span> <span class="s">&quot;Hello World&quot;</span><span class="p">;</span>
 <span class="kt">int</span> <span class="nf">main</span><span class="p">()</span>
 <span class="p">{</span>
+  <span class="n">printf</span><span class="p">(</span><span class="s">&quot;value99 = %d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">value99</span><span class="p">);</span>
 <span class="p">}</span>
 </pre></div>
 
 <pre>
- $ gcc -no-pie -g -Wall -o test_prog print-a.c
+ $ gcc -no-pie -g -Wall -o print-a print-a.c
 </pre>
 
 <pre>
-Reading symbols from ./test_prog...
+ $ gdb --args ./print-a
+Reading symbols from ./print-a...
 
 (gdb) <span class="gdb-command">start
-</span>Temporary breakpoint 1 at 0x40110f: file print-a.c, line 5.
-Starting program: /home/tanakmura/src/pllp/docs/debugger/test_prog 
+</span>Temporary breakpoint 1 at 0x40112a: file print-a.c, line 6.
+Starting program: /home/tanakmura/src/pllp/docs/debugger/print-a 
 
-Temporary breakpoint 1, main () at print-a.c:5
-5	}
+Temporary breakpoint 1, main () at print-a.c:6
+6	  printf("value99 = %d\n", value99);
 (gdb) <span class="gdb-command">print value99
 </span>$1 = 99
 (gdb) <span class="gdb-command">print helloworld
 </span>$2 = 0x402004 "Hello World"
+(gdb) <span class="gdb-command">set value99=123456
+</span>(gdb) <span class="gdb-command">continue
+</span>Continuing.
+value99 = 123456
+[Inferior 1 (process 335177) exited normally]
 </pre>
-
 
 
 <pre>
 (gdb) <span class="gdb-command">print value99 # 変数名 "value99" が使える</span>
 </pre>
 
-<p> gdb が、変数 "value99","helloworld" という名前をそのまま使えていることを確認してほしい。さらに、変数の型に応じて、適切な表示方法を採用しているのも確認してほしい。
-int型の変数に対しては、数字を表示し、char*型の変数に対しては、文字列を表示している。
+<p> gdb が、変数 "value99","helloworld" という変数の名前をそのまま使えていることを確認してほしい。
+  さらに、変数の型に応じて、適切な表示方法を採用しているのも確認してほしい。
+  int型の変数に対しては、数字を表示し、char*型の変数に対しては、文字列を表示している。
 </p>
 
 <p>
-  これを実現するために、コンパイラやリンカは、<em> デバッグ情報 </em> と呼ばれる、
+  CPUが実行する時に使うデータは、メモリ上に展開されたバイナリデータだけで、操作するデータの変数名や型などは、実行時には必要ではない。
+  ところが、デバッガからプログラムを実行すると、そこに変数名や型が存在するかのようにプログラムの状態を操作できるのだ。これはどうやっているのだろうか。
+</p>
+
+<p>
+  これを実現するために、コンパイラやリンカは、実行ファイルの出力時に、<em>デバッグ情報</em>と呼ばれる、デバッガを補助するための追加のデータを、実行ファイルに含めて出力する。(Visual Studio のコンパイラでは、実行ファイルとは別に出力される)
+</p>
+
+<pre>
+ $ gcc -no-pie -g -Wall -o print-a print-a.c
+</pre>
+
+
+
+<p> ここでは、コンパイル時に <em>-g</em> を付けている点に注意してほしい。この <em>-g</em> は、デバッグ情報を生成するようにgccに指示するオプションだ。これを付けると、gccとリンカは、出力される実行ファイルにデバッグ情報を追加する。</p>
+
+<p> デバッグ情報の中身を見てみよう。デバッグ情報は readelf に -w オプションを付けるか、objdump に -g オプションを付けると見ることができる。どちらも同じものが表示されるので、以下では readelf -w を使うことにする。 </p>
+
+<pre>
+ $ readelf -w print-a
+Contents of the .eh_frame section:
+
+
+00000000 0000000000000014 00000000 CIE
+  Version:               1
+  Augmentation:          "zR"
+  Code alignment factor: 1
+  Data alignment factor: -8
+  Return address column: 16
+  Augmentation data:     1b
+  DW_CFA_def_cfa: r7 (rsp) ofs 8
+  DW_CFA_offset: r16 (rip) at cfa-8
+  DW_CFA_nop
+  DW_CFA_nop
+
+... (以下大量の出力) ...
+</pre>
+
+<p> たった8行のプログラムにしては、かなりの量の情報がある。ここには一体何が含まれているのだろうか。以下では、このデバッグ情報の中身について説明していこう。 </p>
+
+<h4> シンボルからアドレスと型情報への変換 </h4>
+
+<p>
+  デバッグ情報には、どういう情報を含めておけばよいだろうか。まず、print-a の例で説明したような、
+</p>
+
+<pre>
+ (gdb) print value99
+ (gdb) set value99=123456
+</pre>
+
+<p>
+  といったようなコマンドを実現するためには、
+</p>
+
+<ul>
+  <li> シンボル名から機械語中の実行時のアドレスを取得する </li>
+  <li> シンボル名から型情報を取得する </li>
+</ul>
+
+<p>
+  という処理が必要だ。これらの処理ができれば、gdb の print は、
+</p>
+
+<ol>
+  <li> value99 という名前から、型情報とアドレスを取得する </li>
+  <li> ptrace を使って、変数のアドレスから型のサイズ分バイト列を取得する </li>
+  <li> 取得したバイト列を型情報に従って表示する </li>
+</ol>
+
+<p>
+  という手順で実現できる。
+</p>
+
+<p>
+  では、シンボル名からアドレスや型情報を取得するデータとはどのようなものだろうか。
+</p>
+
+<p>
+  次のようなプログラムを考えよう。
+</p>
+
+
+<p><a href="dummy-debuginfo.c"> dummy-debuginfo.c </a><p>
+<div class="pygments"><pre><span></span><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;string.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp"></span>
+
+<span class="k">enum</span> <span class="n">var_type</span> <span class="p">{</span>
+    <span class="n">TYPE_INT</span><span class="p">,</span>
+    <span class="n">TYPE_CHAR_PTR</span>
+<span class="p">};</span>
+
+<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="nf">type_to_str</span><span class="p">(</span><span class="k">enum</span> <span class="n">var_type</span> <span class="n">t</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">switch</span> <span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">case</span> <span class="nl">TYPE_INT</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&quot;int&quot;</span><span class="p">;</span>
+    <span class="k">case</span> <span class="nl">TYPE_CHAR_PTR</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&quot;char*&quot;</span><span class="p">;</span>
+    <span class="k">default</span><span class="o">:</span>
+        <span class="k">return</span> <span class="s">&quot;unknown type&quot;</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="p">{</span>
+    <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">symbol</span><span class="p">;</span>
+    <span class="k">enum</span> <span class="n">var_type</span> <span class="n">type</span><span class="p">;</span>
+    <span class="kt">long</span> <span class="n">var_addr</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="cm">/* デバッグ情報のようなもの */</span>
+<span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="n">dummy_debuginfo</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">{</span><span class="s">&quot;int_value&quot;</span><span class="p">,</span> <span class="n">TYPE_INT</span><span class="p">,</span> <span class="mh">0x8000</span><span class="p">},</span>
+    <span class="p">{</span><span class="s">&quot;str_value&quot;</span><span class="p">,</span> <span class="n">TYPE_CHAR_PTR</span><span class="p">,</span> <span class="mh">0x8008</span><span class="p">},</span>
+    <span class="p">{</span><span class="nb">NULL</span><span class="p">}</span>                              <span class="cm">/* 終端 */</span>
+<span class="p">};</span>
+
+<span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span>
+<span class="n">extract_var_debug_info</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">symbol</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;cannot find debug info for &#39;%s&#39;.</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">symbol</span><span class="p">);</span>
+            <span class="n">abort</span><span class="p">();</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">strcmp</span><span class="p">(</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="o">&amp;</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kt">int</span>
+<span class="n">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">argv</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">argc</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;usage : %s &lt;symbol&gt;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+        <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span><span class="n">info</span> <span class="o">=</span> <span class="n">extract_var_debug_info</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;sym: %s, type:%s, addr=0x%016lx</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span>
+           <span class="n">info</span><span class="o">-&gt;</span><span class="n">symbol</span><span class="p">,</span>
+           <span class="n">type_to_str</span><span class="p">(</span><span class="n">info</span><span class="o">-&gt;</span><span class="n">type</span><span class="p">),</span>
+           <span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">);</span>
+
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+
+
+<p>
+  これは、テーブルから、シンボルの情報を取得するプログラムだ。ここでは、値は特に意味のない値だが、文字列をプログラムに渡すと、その型とアドレスのようなものが出力されることを確認してほしい。
+</p>
+
+<pre>
+ $ gcc  -o dummy-debuginfo dummy-debuginfo.c
+</pre>
+
+<pre>
+ $ ./dummy-debuginfo int_value 
+sym: int_value, type:int, addr=0x0000000000008000
+
+ $ ./dummy-debuginfo str_value 
+sym: str_value, type:char*, addr=0x0000000000008008
+
+</pre>
+
+
+
+<p>
+  ここでは、dummy_debuginfo には意味のない値が入っているが、ここに意味のある値が入っていたらどうなるだろうか。
+</p>
+
+<p> 次のプログラムをコンパイルして、readelf -s を使って、int_value, str_value のアドレスを取得しよう。</p>
+
+
+<p><a href="debugee1.c"> debugee1.c </a><p>
+<div class="pygments"><pre><span></span><span class="kt">int</span> <span class="n">int_value</span> <span class="o">=</span> <span class="mi">1234</span><span class="p">;</span>
+<span class="kt">char</span> <span class="o">*</span><span class="n">str_value</span> <span class="o">=</span> <span class="s">&quot;Hello World&quot;</span><span class="p">;</span>
+
+<span class="kt">int</span> <span class="nf">_start</span><span class="p">()</span> <span class="p">{</span>
+  <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+
+<pre>
+ $ gcc -no-pie -nostartfiles -nostdlib -o debugee1 debugee1.c
+</pre>
+
+<pre>
+ $ readelf -s debugee1 
+
+Symbol table '.symtab' contains 10 entries:
+  番号:      値         サイズ タイプ  Bind   Vis      索引名
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
+     1: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS debugee1.c
+     2: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS 
+     3: 000000000040200c     0 NOTYPE  LOCAL  DEFAULT    5 __GNU_EH_FRAME_HDR
+     4: 0000000000404008     8 OBJECT  GLOBAL DEFAULT    7 str_value
+     5: 0000000000404000     4 OBJECT  GLOBAL DEFAULT    7 int_value
+     6: 0000000000401000     6 FUNC    GLOBAL DEFAULT    3 _start
+     7: 0000000000404010     0 NOTYPE  GLOBAL DEFAULT    7 __bss_start
+     8: 0000000000404010     0 NOTYPE  GLOBAL DEFAULT    7 _edata
+     9: 0000000000404010     0 NOTYPE  GLOBAL DEFAULT    7 _end
+
+</pre>
+
+
+<pre>
+ $ readelf -s a.out | grep int_value | awk '{print $2}' # 変数 int_value のアドレス
+0000000000404000
+ $ readelf -s a.out | grep str_value | awk '{print $2}' # 変数 str_value のアドレス
+0000000000404008
+</pre>
+
+
+
+<p> この取得したアドレスをさきほどのプログラムに入れたらどうなるだろうか。 </p>
+<pre>
+/* debugee1.c のデバッグ情報 */
+const struct VarDebugInfo dummy_debuginfo[] = {
+    {"int_value", TYPE_INT, 0x404000},
+    {"str_value", TYPE_CHAR_PTR, 0x404008},
+    {NULL}                              /* 終端 */
+};
+</pre>
+
+<p> これは、もはやダミーのデバッグ情報ではなく、debugee1 というプログラムのためのデバッグ情報になるのだ。 </p>
+
+<p> この debugee1 というプログラムのデバッグ情報を使って、gdb の print 相当の機能を実装してみよう。 </p>
+
+
+<p><a href="debugger1.c"> debugger1.c </a><p>
+<div class="pygments"><pre><span></span><span class="cm">/* gdb の print のような機能を実現するプログラム */</span>
+
+<span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;string.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;unistd.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;sys/ptrace.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;sys/wait.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;stdint.h&gt;</span><span class="cp"></span>
+
+<span class="k">enum</span> <span class="n">var_type</span> <span class="p">{</span>
+    <span class="n">TYPE_INT</span><span class="p">,</span>
+    <span class="n">TYPE_CHAR_PTR</span>
+<span class="p">};</span>
+
+<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="nf">type_to_str</span><span class="p">(</span><span class="k">enum</span> <span class="n">var_type</span> <span class="n">t</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">switch</span> <span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">case</span> <span class="nl">TYPE_INT</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&quot;int&quot;</span><span class="p">;</span>
+    <span class="k">case</span> <span class="nl">TYPE_CHAR_PTR</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&quot;char*&quot;</span><span class="p">;</span>
+    <span class="k">default</span><span class="o">:</span>
+        <span class="k">return</span> <span class="s">&quot;unknown type&quot;</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="p">{</span>
+    <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">symbol</span><span class="p">;</span>
+    <span class="k">enum</span> <span class="n">var_type</span> <span class="n">type</span><span class="p">;</span>
+    <span class="kt">long</span> <span class="n">var_addr</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="cm">/* debugee1.c のデバッグ情報 */</span>
+<span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="n">debuginfo_for_debugee1</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="cm">/* var_addr には readelf -s で取得したアドレスを入れる */</span>
+    <span class="p">{</span><span class="s">&quot;int_value&quot;</span><span class="p">,</span> <span class="n">TYPE_INT</span><span class="p">,</span> <span class="mh">0x404000</span><span class="p">},</span>
+    <span class="p">{</span><span class="s">&quot;str_value&quot;</span><span class="p">,</span> <span class="n">TYPE_CHAR_PTR</span><span class="p">,</span> <span class="mh">0x404008</span><span class="p">},</span>
+    <span class="p">{</span><span class="nb">NULL</span><span class="p">}</span>                              <span class="cm">/* 終端 */</span>
+<span class="p">};</span>
+<span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span>
+<span class="n">extract_var_debug_info</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">symbol</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">debuginfo_for_debugee1</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;cannot find debug info for &#39;%s&#39;.</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">symbol</span><span class="p">);</span>
+            <span class="n">abort</span><span class="p">();</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">strcmp</span><span class="p">(</span><span class="n">debuginfo_for_debugee1</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="o">&amp;</span><span class="n">debuginfo_for_debugee1</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">static</span> <span class="kt">void</span>
+<span class="n">print_var_info</span><span class="p">(</span><span class="kt">int</span> <span class="n">pid</span><span class="p">,</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span><span class="n">info</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">v</span><span class="p">;</span>
+    <span class="kt">long</span> <span class="n">ptr</span><span class="p">;</span>
+    <span class="kt">char</span> <span class="n">buffer</span><span class="p">[</span><span class="mi">1024</span><span class="p">];</span>
+
+    <span class="k">switch</span> <span class="p">(</span><span class="n">info</span><span class="o">-&gt;</span><span class="n">type</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">case</span> <span class="nl">TYPE_INT</span><span class="p">:</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)</span><span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s:%d, addr=%lx</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">symbol</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">);</span>
+        <span class="k">break</span><span class="p">;</span>
+
+    <span class="k">case</span> <span class="nl">TYPE_CHAR_PTR</span><span class="p">:</span>
+        <span class="n">ptr</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">),</span> <span class="mi">0</span><span class="p">);</span>
+        <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+            <span class="kt">uint8_t</span> <span class="n">v8</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">ptr</span><span class="o">+</span><span class="n">i</span><span class="p">),</span> <span class="mi">0</span><span class="p">);</span>
+            <span class="n">buffer</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">v8</span><span class="p">;</span>
+            <span class="k">if</span> <span class="p">(</span><span class="n">v8</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+                <span class="k">break</span><span class="p">;</span>
+            <span class="p">}</span>
+        <span class="p">}</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s:%s, var_addr=%lx, value_addr=%lx</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">symbol</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">,</span> <span class="n">ptr</span><span class="p">);</span>
+        <span class="k">break</span><span class="p">;</span>
+
+    <span class="k">default</span><span class="o">:</span>
+        <span class="n">puts</span><span class="p">(</span><span class="s">&quot;xx&quot;</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kt">int</span>
+<span class="n">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">argv</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">argc</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;usage : %s &lt;symbol&gt;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+        <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kt">int</span> <span class="n">r</span> <span class="o">=</span> <span class="n">access</span><span class="p">(</span><span class="s">&quot;./debugee1&quot;</span><span class="p">,</span> <span class="n">X_OK</span><span class="p">);</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;cannot find program `debugee1` (please compile debugee1.c)</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+        <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
+    <span class="k">if</span> <span class="p">(</span> <span class="p">(</span><span class="n">pid</span><span class="o">=</span><span class="n">fork</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+        <span class="kt">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;./debugee1&quot;</span><span class="p">,</span><span class="nb">NULL</span><span class="p">};</span>
+        <span class="n">execve</span><span class="p">(</span><span class="s">&quot;./debugee1&quot;</span><span class="p">,</span> <span class="n">argv</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="kt">int</span> <span class="n">st</span><span class="p">;</span>
+        <span class="n">usleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
+        <span class="kt">int</span> <span class="n">r</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">);</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">perror</span><span class="p">(</span><span class="s">&quot;ptrace&quot;</span><span class="p">);</span>
+            <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+        <span class="p">}</span>
+        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+
+        <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span><span class="n">info</span> <span class="o">=</span> <span class="n">extract_var_debug_info</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+
+        <span class="n">print_var_info</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">info</span><span class="p">);</span>
+
+        <span class="n">kill</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">SIGKILL</span><span class="p">);</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+
+<pre>
+ $ gcc  -o debugger1 debugger1.c
+</pre>
+
+<pre>
+ $ ./debugger1 int_value 
+int_value:1234, addr=404000
+
+</pre>
+
+<pre>
+ $ ./debugger1 str_value 
+str_value:Hello World, var_addr=404008, value_addr=402000
+
+</pre>
+
+
+
+<p>
+  このプログラムに int_value を指定した場合は、対象プログラム debugee1 の変数int_valueの値が整数値として、
+  str_value を指定した場合は、変数str_valueの値が文字列として表示されることを確認し、この(自分で作った)テーブルが、デバッグ情報のようなものとして機能していることを確認しよう。
 </p>
 
 <p> <a href="../index.html"> 戻る </a> </p>
-
 
 </body>
 </html>
