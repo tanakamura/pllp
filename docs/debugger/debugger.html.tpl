@@ -82,52 +82,11 @@
 
 <p> メモリと同様に、traceeのレジスタを読み書きすることができる。読むときはPTRACE_GETREGS、書くときはPTRACE_SETREGSだ。</p>
 
- <!-- include ptrace3.c run -->
-<p><a href="ptrace3.c"> ptrace3.c </a><p>
-<pre>
-#include &lt;stdio.h&gt;
-#include &lt;sys/ptrace.h&gt;
-#include &lt;sys/wait.h&gt;
-#include &lt;sys/user.h&gt;
-#include &lt;stdint.h&gt;
-#include &lt;unistd.h&gt;
-#include &lt;signal.h&gt;
+{{ start_file("ptrace3.c") }}
+{{ include_source() }}
+  {{ gcc_and_run() }}
+  {{ end_file("ptrace3.c") }}
 
-int
-main(int argc, char **argv)
-{
-    int pid;
-    if ( (pid = fork()) == 0) {
-        /* 子プロセス */
-        while (1)
-          ;
-    } else {
-        int st;
-
-        /* 親プロセス */
-
-        sleep(1);
-        ptrace(PTRACE_ATTACH, pid, 0, 0); /* 子プロセスを監視対象にする */
-        waitpid(pid, &amp;st, 0);  /* 子プロセスが停止するまで待機 */
-
-        struct user_regs_struct regs;
-
-        ptrace(PTRACE_GETREGS, pid, 0, &amp;regs);
-        printf(&quot;rip=%016llx, main=%016llx, delta=%llx\n&quot;, (long long)regs.rip, (long long)main, (long long)regs.rip - (long long)main);
-
-        kill(pid, SIGKILL);
-    }
-
-    return 0;
-}
-</pre>
-<pre>
- $ gcc -no-pie -g -Wall -o test_prog ptrace3.c
- $ ./test_prog</pre>
-<pre>
-rip=00000000004011c1, main=0000000000401186, delta=3b
-</pre>
- <!-- end ptrace3.c -->
 
 <p> プログラムカウンタが、main の近くにあることを確認しよう。 </p>
 
@@ -194,7 +153,7 @@ rip=00000000004011c1, main=0000000000401186, delta=3b
 
 <p> <em> JTAG </em> (Joint Test Action Group) とは、狭義にはハードウェアのテスト用の標準を定めるグループと、そのグループが決めた仕様のことである </p>
 
-<p> 現代のCPUのような、超高密度な集積回路は、テスタ等で、外から内部の状態を観測することが現実的ではない。 </p>
+<p> 現代のCPUのような超高密度な集積回路は、外部から触れられるピンだけを使って、内部の状態を観測することが現実的ではない。 </p>
 
 <p> そのため、集積度の高い回路では、内部に、テスト用の回路も作っておき、そのテスト用の回路を経由して、回路に問題がないかテストするという方法がとられることが多い。
 <em>JTAG</em> は、このテスト用の回路をどうやって接続するか、というのを決めた仕様のことである。
@@ -206,22 +165,19 @@ rip=00000000004011c1, main=0000000000401186, delta=3b
 </p>
 
 <p>
-  現代(と言ってもかなり昔からだが)のCPUは、その機能の一部に、「CPUやメモリの状態を読み書きする専用のハードウェア」が搭載されている。このハードウェアは、ほぼ確実にJTAG仕様に準拠したバス経由で、外部と繋がっている。そのため、この「CPUやメモリの状態を読み書きする専用のハードウェア」を使う場合は、JTAGケーブルを使って、プログラムの状態を観測することになる。
+  現代(と言ってもかなり昔からだが)のCPUは、その機能の一部に、「CPUやメモリの状態を読み書きする専用のハードウェア」が搭載されている。このハードウェアは、ほぼ確実にJTAG仕様に準拠した信号線を経由して、外部と繋がっている。そのため、この「CPUやメモリの状態を読み書きする専用のハードウェア」を使う場合は、JTAGケーブルを使って、プログラムの状態を観測することになる。
 </p>
 
 <p>
-  この、「JTAG経由で繋がった状態観測用のハードウェアを使ってgdbなどのデバッガを動かす」というのが、省略されて、「JTAGデバッグ」、そして、その周辺ツールが「JTAG」と呼ばれるようになっている。(筆者は、この用語の使いかたはWikipediaをWikiと略すよりひどいのではないかと思うことがある。データの経路が名前になっているから、Wikipediaをインターネットと呼ぶようなものである)
+  この、「JTAG経由で繋がった状態観測用のハードウェアを使ってgdbなどのデバッガを動かす」というのが、省略されて、「JTAGデバッグ」、そして、その周辺ツールが「JTAG」と呼ばれるようになっている。(筆者は、この用語の使いかたはWikipediaをWikiと略すよりひどいのではないかと思う。データの経路が名前になっているから、Wikipediaをインターネットと呼ぶようなものである)
 </p>
 
 <p>
-  「CPUやメモリの状態を読み書きする専用のハードウェア」ができることは、gdb stubとほとんど同じだと考えてよいだろう。メモリやレジスタを読み書きできるようになっている。
+  「CPUやメモリの状態を読み書きする専用のハードウェア」ができることは、gdb stubとほとんど同じだと考えてもらってよい。メモリやレジスタを読み書きでき、CPU実行の一時停止、再開ができる。
 </p>
 
 <p>
-  gdb stubと違い、JTAG経由でCPUの状態を観測する場合は、ソフトウェアが完全に壊れて何も動かない場合や、ソフトウェアが初期化されていない状態でも使えるので、これは嬉しい場面が多いだろう。
-</p>
-
-<p>
+  gdb stubと違い、JTAG経由でCPUの状態を観測する場合は、ソフトウェアが完全に壊れて何も動かない場合や、ソフトウェアが初期化されていない状態でも使える。これは嬉しい場面が多いだろう。
   gdb stub を動かすには、割り込みなどが正しく処理されている必要があり、割り込みが動かないような問題の状態を観測したい場合には使えない。
   また、割り込みが動作して、シリアルケーブルが使えるようになるまでには、それなりの初期化が必要で、初期化処理を観測したい場合には、gdb stubは使えない。そのような場合でも、JTAG経由なら、CPUの状態を観測できる場合が多い。
 </p>
@@ -280,40 +236,11 @@ rip=00000000004011c1, main=0000000000401186, delta=3b
   少し考えて欲しいが、CPUが実行しているときに見ているのは、アドレスと機械語だけで、CPUは、どれが関数で、どれが変数で、その型はなにか、とかいったようなものはCPUから見ると存在していないのだ。では、何故、デバッガは、実行中のプログラムに、変数や関数がさも本当に存在しているかのように扱えるのだろうか。
 </p>
 
-<!-- include print-a.c run -->
-<p><a href="print-a.c"> print-a.c </a><p>
-<pre>
-int value99 = 99;
-char *helloworld = &quot;Hello World&quot;;
-int main()
-{
-}
-</pre>
-<pre>
- $ gcc -no-pie -g -Wall -o test_prog print-a.c
- $ ./test_prog</pre>
-<!-- gdb command
-start
-print value99
-print helloworld
-end gdb-->
-<!-- start skip -->
-<pre>
-Reading symbols from ./test_prog...
-
-(gdb) <span class="gdb-command">start
-</span>Temporary breakpoint 1 at 0x40110f: file print-a.c, line 5.
-Starting program: /home/tanakmura/src/pllp/docs/debugger/test_prog 
-
-Temporary breakpoint 1, main () at print-a.c:5
-5	}
-(gdb) <span class="gdb-command">print value99
-</span>$1 = 99
-(gdb) <span class="gdb-command">print helloworld
-</span>$2 = 0x402004 "Hello World"
-</pre>
-<!-- end skip -->
-<!-- end print-a.c -->
+{{ start_file("print-a.c") }}
+{{ include_source() }}
+{{ gcc('-no-pie -g -Wall') }}
+{{ gdb('start','print value99','print helloworld') }}
+{{ end_file("print-a.c") }}
 
 <pre>
 (gdb) <span class="gdb-command">print value99 # 変数名 "value99" が使える</span>

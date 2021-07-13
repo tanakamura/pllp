@@ -39,7 +39,6 @@ class SourceSession:
 
 def update_document(path):
     newpath = path + ".tmp"
-    output = open(newpath, "w")
 
     cur_session = None
 
@@ -85,6 +84,43 @@ def update_document(path):
 
         return result
 
+    def gcc(gcc_options="-Wall -no-pie"):
+        nonlocal cur_session
+        command = compile(cur_session.path)
+
+        result = ""
+        result += ("<pre>\n")
+        result += (" $ " + command + "\n")
+        result += ("</pre>\n")
+
+        return result
+
+    def gdb(*commands):
+        gdb_args = ["gdb", "--nx", "--quiet", "--interpreter=mi3", "--args", "./test_prog"]
+        gdb = GdbController(command=gdb_args)
+
+        result = ""
+        result += ("<pre>\n")
+
+        response = gdb.write("")
+        for r in response:
+            if r['type'] == 'stream' or r['type'] == 'console' or r['type'] == 'log':
+                result += (r['payload'].encode('utf-8').decode('unicode_escape'))
+
+        for c in commands:
+            result += ("(gdb) ")
+            response = gdb.write(c)
+            for r in response:
+                if r['type'] == 'log':
+                    result += ('<span class="gdb-command">')
+                    result += (r['payload'].encode('utf-8').decode('unicode_escape'))
+                    result += ("</span>")
+                elif r['type'] == 'stream' or r['type'] == 'console' or r['type'] == 'log':
+                    result += (r['payload'].encode('utf-8').decode('unicode_escape'))
+
+        result += ("</pre>\n")
+        return result
+
 
     def include_source():
         nonlocal cur_session
@@ -103,15 +139,16 @@ def update_document(path):
     template.globals['include_source'] = include_source
     template.globals['set_expected'] = set_expected
     template.globals['gcc_and_run'] = gcc_and_run
+    template.globals['gcc'] = gcc
+    template.globals['gdb'] = gdb
     template.globals['end_file'] = end_file
 
     result = template.render()
 
+    output = open(newpath, "w")
     output.write(result)
-
     output.close()
     os.rename(newpath, path)
-
 
 #    lines = open(path).readlines()
 #    newpath = path + ".tmp"
