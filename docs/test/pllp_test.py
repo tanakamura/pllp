@@ -97,8 +97,8 @@ def update_document(path):
             cmdstr = ""
             for c in cmd:
                 cmdstr += c + " "
-            result += (" $ " + cmdstr + "\n")
-            result += (out)
+            result += (" $ " + html.escape(cmdstr) + "\n")
+            result += (html.escape(out))
             result += "\n"
         result += ("</pre>\n")
 

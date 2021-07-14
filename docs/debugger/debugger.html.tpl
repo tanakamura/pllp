@@ -14,32 +14,40 @@
 
 <h1> <a href="debugger.html"> デバッガ </a> </h1>
 
-  <p>
-    さて、これまで何度も使ってきたgdb、つまりデバッガだが、これがどのように動いているかを見ていこう。
-  </p>
+<p>
+  これまで何度も使ってきたgdb、つまりデバッガだが、これがどのように動いているかを見ていこう。
+</p>
 
-  <p>
-    "デバッガ" とはなんだろうか。
-    "デバッガ" というと、バグを取ってくれるようなツールに聞こえるが、みなさんご存知のとおり、デバッガはプログラマのかわりにバグを取ってくれるわけではない。
-    実際のデバッガの動作は実行中のプログラムの状態を見れるツール、つまり "プログラムの状態ビューワ" とでも言ったほうが、現実とあっているだろう。
-  </p>
+<p>
+  "デバッガ" とはなんだろうか。
+  "デバッガ" というと、バグを取ってくれるようなツールに聞こえるが、みなさんご存知のとおり、デバッガはプログラマのかわりにバグを取ってくれるわけではない。
+  実際のデバッガの動作は実行中のプログラムの状態を見れるツール、つまり "プログラムの状態ビューワ" とでも言ったほうが、現実とあっているだろう。
+</p>
 
-<p> この章では、まず、デバッガが必要とする基本的な操作について説明し、続けてデバッグ情報についても説明する。そのあと、その操作とデバッグ情報を組み合わせて、デバッガの機能を実現する方法について説明していく。 </p>
+<p>
+  個人的には'デバッガ"という名称は実態とあってない、とは思うが、この章では、慣習にしたがって、プログラムの状態を調査、変更するツールのことを"デバッガ"と呼び、
+  そのデバッガを使って実際に何かをすることを"デバッグ"と呼ぶ。
+  また、デバッグされるプログラムの対象を"デバッギ(debugee)"と呼ぶ。
+</p>
+
+<p>
+  この章では、まず、デバッガが必要とする基本的な操作について説明し、続けてデバッグ情報についても説明する。そのあと、その操作とデバッグ情報を組み合わせて、デバッガの機能を実現する方法について説明していく。
+</p>
 
 <h2> ptrace </h2>
 
-  <p>
-    Linux ではデバッガの実装時に役立つ、ptrace というシステムコールがある。
-  </p>
+<p>
+  Linux ではデバッガの実装時に役立つ、ptrace というシステムコールがある。
+</p>
 
-  <p>
-    <em>ptrace</em> は、対象となるプロセスの状態を監視し、変更できるシステムコールである。
-  </p>
+<p>
+  <em>ptrace</em> は、対象となるプロセスの状態を読み書きできるシステムコールである。
+</p>
 
-  <p>
-    デバッガを実装する場合、対象となるプログラムのメモリやレジスタを読んだり変更したりしたい場合は多いだろう。
-    ptrace を使えば、それが実現できる。
-  </p>
+<p>
+  デバッガを実装する場合、対象となるプログラムのメモリやレジスタを読み書きしたい場合が多い。
+  ptrace を使えば、それが実現できる。
+</p>
 
   {{ start_file("ptrace1.c") }}
   {{ include_source() }}
@@ -49,13 +57,13 @@
   {{ end_file("ptrace1.c") }}
 
 <p>
-  まず、PTRACE_ATTACHと対象プロセスのpidを引数にして、ptrace を呼び出す。これで、対象プロセスが操作可能になる。
+  まず、PTRACE_ATTACHと対象プロセスのpidを引数にして、ptrace を呼び出す。これで、対象プロセスがアタッチされる(操作可能になる)。
   ptraceの説明では、操作する側のプロセス(ここでは親プロセス)を <em>tracer</em>、操作される側(ここでは子プロセス)を<em>tracee</em>
   と呼んでいる。それにならって、ここでは同じようにtracer,traceeと呼ぶことにしよう。
 </p>
 
 <p>
-  tracer が tracee をアタッチすると、tracee は停止する。これは非同期に実行されるので、停止したのが確定するまで待つ。これは、waitpidを使う。
+  tracer が tracee をアタッチすると、tracee は停止する。これは非同期に実行されるので、停止したのが確定するまでwaitpidで待つ。
 </p>
 
 <p>
@@ -64,11 +72,15 @@
 
 <p>
   この例では、tracee は、trace から fork したプロセスなので、変数 "x" のアドレスは同じになっている。そのため、PTRACE_PEEKDATA に x のアドレスを渡すと、traceeの変数"x"の値が取得できる。
-  fork しない場合は、変数名とアドレスの対応は、なんらかの方法で取得する必要がある。取得方法についてはあとで説明しよう。
+  fork しない場合は、変数名とアドレスの対応は、なんらかの方法で取得する必要がある。取得方法についてはあとでデバッグ情報のところで解説しよう。
+</p>
+
+<p>
+  tracerが必要な操作を終えたあとは、PTRACE_DETACHでデタッチする(操作を終了する)。traceeがアタッチされたままだと、シグナルがtracerに送られてしまい、挙動が変わってしまう。このプログラムはシグナルを使っていないので影響ないが、正しく処理するときはデタッチしておこう。
 </p>
 
 
-<p> tracee のメモリを書きかえたいときは、PTRACE_POKEDATA を使う </p>
+<p> tracee のメモリを書きかえたいときは、PTRACE_POKEDATA を使う。PTRACE_ATTACHで一時停止したプログラムは、PTRACE_CONT を使えば、再開できる。また、この例では使っていないが、再開したプログラムを再度一時停止したい場合は、SIGSTOPを止めたいスレッドに送る。 </p>
 
 {{ start_file("ptrace2.c") }}
 {{ include_source() }}
@@ -78,16 +90,14 @@
   {{ end_file("ptrace2.c") }}
 
 
-<p> メモリと同様に、traceeのレジスタを読み書きすることができる。読むときはPTRACE_GETREGS、書くときはPTRACE_SETREGSだ。</p>
+<p> メモリと同様に、traceeのレジスタを読み書きすることができる。読むときはPTRACE_GETREGS、書くときはPTRACE_SETREGSを使う。</p>
 
 {{ start_file("ptrace3.c") }}
 {{ include_source() }}
-  {{ gcc_and_run() }}
-  {{ end_file("ptrace3.c") }}
-
+{{ gcc_and_run() }}
+{{ end_file("ptrace3.c") }}
 
 <p> プログラムカウンタが、main の近くにあることを確認しよう。 </p>
-
 
 <h2> Linux 以外 (ptraceが無い場合) </h2>
 
@@ -116,11 +126,19 @@
   Windowsでは、これらの操作と対応するAPIが用意されており、それを使えばこれらの操作を実現できる。
 </p>
 
-<ul>
-  <li> SuspendThread, ResumeThread : スレッドの一時停止、再開 </li>
-  <li> ReadProcessMemory, WriteProcessMemory : 対象プロセスのメモリの読み書き </li>
-  <li> GetThreadContext, SetThreadContext : 対象プロセスのレジスタの読み書き </li>
-</ul>
+<table>
+  <tr> <th> 操作 </th> <th> API </th> <th> 対応するLinuxでの操作 </th> </tr>
+
+  <tr> <td> デバッグの開始 </td> <td> DebugActiveProcess </td> <td> ptrace(PTRACE_ATTACH) </td> </tr>
+  <tr> <td> デバッグの終了 </td> <td> DebugActiveProcessStop </td> <td> ptrace(PTRACE_DETACH) </td> </tr>
+  <tr> <td> 実行の一時停止 </td> <td> SuspendThread </td> <td> SIGSTOPを送る </td> </tr>
+  <tr> <td> 実行の再開 </td> <td> ResumeThread </td> <td> ptrace(PTRACE_CONT) </td> </tr>
+  <tr> <td> メモリからの読み込み </td> <td> ReadProcessMemory </td> <td> ptrace(PTRACE_PEEKDATA) </td> </tr>
+  <tr> <td> メモリへの書き込み </td> <td> WriteProcessMemory </td> <td> ptrace(PTRACE_POKEDATA) </td> </tr>
+  <tr> <td> レジスタからの読み込み </td> <td> GetThreadContext </td> <td> ptrace(PTRACE_PEEKUSER) </td> </tr>
+  <tr> <td> レジスタへの書き込み </td> <td> SetThreadContext </td> <td> ptrace(PTRACE_POKEUSER) </td> </tr>
+</table>
+
 
 <h3> gdb stub(OSが無い場合) </h3>
 
@@ -158,26 +176,25 @@
 </p>
 
 </p>
-…が、プログラマがJTAGと言った場合は、ほぼ確実に、<em>CPUに搭載された状態観測用のハードウェアを使ってデバッグするインターフェース、ツール類のこと</em>を指す。
+…が、プログラマがJTAGと言った場合は、ほぼ確実に、<em>CPUに搭載されたデバッグ用のハードウェアを使ってデバッグするインターフェース、ツール類のこと</em>を指す。
 プログラマが言う"JTAG"は、本来の意味と少し違ってしまっていることに注意してほしい。
 </p>
 
 <p>
-  現代(と言ってもかなり昔からだが)のCPUは、その機能の一部に、「CPUやメモリの状態を読み書きする専用のハードウェア」が搭載されている。このハードウェアは、ほぼ確実にJTAG仕様に準拠した信号線を経由して、外部と繋がっている。そのため、この「CPUやメモリの状態を読み書きする専用のハードウェア」を使う場合は、JTAGケーブルを使って、プログラムの状態を観測することになる。
+  現代(と言ってもかなり昔からだが)のCPUは、その機能の一部に、CPUやメモリの状態を読み書きする「デバッグ用ハードウェア」が搭載されている。このハードウェアは、ほぼ確実にJTAG仕様に準拠した信号線を経由して、外部と繋がっている。そのため、この「デバッグ用のハードウェア」を使う場合は、JTAGケーブルを使って、プログラムの状態を観測することになる。
 </p>
 
 <p>
-  この、「JTAG経由で繋がった状態観測用のハードウェアを使ってgdbなどのデバッガを動かす」というのが、省略されて、「JTAGデバッグ」、そして、その周辺ツールが「JTAG」と呼ばれるようになっている。(筆者は、この用語の使いかたはWikipediaをWikiと略すよりひどいのではないかと思う。データの経路が名前になっているから、Wikipediaをインターネットと呼ぶようなものである)
+  この、「JTAG経由で繋がったデバッグ用のハードウェアを使ってgdbなどのデバッガを動かす」というのが、省略されて、「JTAGデバッグ」、そして、その周辺ツールが「JTAG」と呼ばれるようになっている。(筆者は、この用語の使いかたはWikipediaをWikiと略すよりひどいのではないかと思う。データの経路が名前になっているから、Wikipediaをインターネットと呼ぶようなものである)
 </p>
 
 <p>
-  「CPUやメモリの状態を読み書きする専用のハードウェア」ができることは、gdb stubとほとんど同じだと考えてもらってよい。メモリやレジスタを読み書きでき、CPU実行の一時停止、再開ができる。
+  「デバッグ用のハードウェア」は、ptraceやgdb stubとほぼ同じように、プログラムの実行状態の制御、メモリ・レジスタの読み書きができる。
 </p>
 
 <p>
-  gdb stubと違い、JTAG経由でCPUの状態を観測する場合は、ソフトウェアが完全に壊れて何も動かない場合や、ソフトウェアが初期化されていない状態でも使える。これは嬉しい場面が多いだろう。
-  gdb stub を動かすには、割り込みなどが正しく処理されている必要があり、割り込みが動かないような問題の状態を観測したい場合には使えない。
-  また、割り込みが動作して、シリアルケーブルが使えるようになるまでには、それなりの初期化が必要で、初期化処理を観測したい場合には、gdb stubは使えない。そのような場合でも、JTAG経由なら、CPUの状態を観測できる場合が多い。
+  デバッグ用のハードウェアは、CPUの状態とは独立して動くので、ソフトウェアが完全に壊れて何も動かない場合や、ソフトウェアが初期化されていない状態でも使える。
+  gdb stub を動かすには、割り込みなどが正しく処理されている必要があり、割り込みが動かないような問題をデバッグしたい場合や、割り込み等を初期化する前の状態をデバッグしたい場合には使えない。そのような場合でも、JTAG経由なら、デバッグできる場合が多いのは、助かる場面が多いだろう。
 </p>
 
 <p>
@@ -233,20 +250,21 @@
 {{ start_file("print-a.c") }}
 {{ include_source() }}
 {{ gcc('-no-pie -g -Wall') }}
-{{ gdb('start','print value99','print helloworld', 'set value99=123456', 'continue') }}
+{{ gdb('start','print int_value','print str_value', 'set int_value=123456', 'continue') }}
 
 <pre>
-(gdb) <span class="gdb-command">print value99 # 変数名 "value99" が使える</span>
+(gdb) <span class="gdb-command">print int_value # 変数名 "int_value" が使える</span>
 </pre>
 
-<p> gdb が、変数 "value99","helloworld" という変数の名前をそのまま使えていることを確認してほしい。
+<p>
+  gdb が、変数 "int_value","str_value" という変数の名前をそのまま使えていることを確認してほしい。
   さらに、変数の型に応じて、適切な表示方法を採用しているのも確認してほしい。
-  int型の変数に対しては、数字を表示し、char*型の変数に対しては、文字列を表示している。
+  int型の変数に対しては、数字を表示し、char[]型の変数に対しては、文字列を表示している。
 </p>
 
 <p>
   CPUが実行する時に使うデータは、メモリ上に展開されたバイナリデータだけで、操作するデータの変数名や型などは、実行時には必要ではない。
-  ところが、デバッガからプログラムを実行すると、そこに変数名や型が存在するかのようにプログラムの状態を操作できるのだ。これはどうやっているのだろうか。
+  ところが、デバッガからプログラムを実行すると、そこに変数名や型が存在するかのようにプログラムの状態を操作できるのだ。これはどうやって実現しているのだろうか。
 </p>
 
 <p>
@@ -289,8 +307,8 @@ Contents of the .eh_frame section:
 </p>
 
 <pre>
- (gdb) print value99
- (gdb) set value99=123456
+ (gdb) print int_value
+ (gdb) set int_value=123456
 </pre>
 
 <p>
@@ -307,7 +325,7 @@ Contents of the .eh_frame section:
 </p>
 
 <ol>
-  <li> value99 という名前から、型情報とアドレスを取得する </li>
+  <li> int_value という名前から、型情報とアドレスを取得する </li>
   <li> ptrace を使って、変数のアドレスから型のサイズ分バイト列を取得する </li>
   <li> 取得したバイト列を型情報に従って表示する </li>
 </ol>
@@ -328,25 +346,47 @@ Contents of the .eh_frame section:
 {{ include_source() }}
 
 <p>
-  これは、テーブルから、シンボルの情報を取得するプログラムだ。ここでは、値は特に意味のない値だが、文字列をプログラムに渡すと、その型とアドレスのようなものが出力されることを確認してほしい。
+  これは、以下のテーブルから、文字列と関連付けられた情報を取得するプログラムだ。
+</p>
+
+<pre>
+/* デバッグ情報のようなもの */
+const struct VarDebugInfo dummy_debuginfo[] = {
+    {"int_value", TYPE_INT, 0x8000},
+    {"str_value", TYPE_CHAR_ARRAY, 0x8008},
+    {NULL}                              /* 終端 */
+};
+</pre>
+
+
+<p>
+ここでは、テーブルに入っている値は意味のない値だが、とりあえず何か名前を指定すると、その名前と関連する情報が表示される点を確認してほしい。
 </p>
 
 {{ gcc('') }}
-{{ run_cmd(["./dummy-debuginfo", "int_value"], ["./dummy-debuginfo", "str_value"]) }}
+<pre>
+ $ ./dummy-debuginfo int_value 
+sym: int_value, type:int, addr=0x0000000000008000 <em> # "int_value" という文字列と関連する情報が表示される </em>
+
+ $ ./dummy-debuginfo str_value 
+sym: str_value, type:char[], addr=0x0000000000008008 <em> # "str_value" という文字列と関連する情報が表示される </em>
+
+</pre>
+
 {{ end_file("dummy-debuginfo.c") }}
 
 <p>
-  ここでは、dummy_debuginfo には意味のない値が入っているが、ここに意味のある値が入っていたらどうなるだろうか。
+  では、この dummy_debuginfo に意味のある値が入っていたらどうなるだろうか。
 </p>
 
 <p> 次のプログラムをコンパイルしたのち、readelf -s を使って、int_value, str_value のアドレスを取得しよう。
   (実行ファイルを簡単にするため、libcとスタートアップルーチンをリンクしていない。これの意味については<a href="../linker.html">リンカの章</a>を参照のこと)
  </p>
 
-{{ start_file("debugee1.c") }}
+{{ start_file("debuggee1.c") }}
 {{ include_source() }}
-{{ gcc('-no-pie -nostartfiles -nostdlib') }}
-{{ run_cmd(["readelf","-s","debugee1"]) }}
+{{ gcc('-no-pie -g -nostartfiles -nostdlib') }}
+{{ run_cmd(["readelf","-s","debuggee1"]) }}
 
 <pre>
  $ readelf -s debugee1 | grep int_value | awk '{print $2}' # 変数 int_value のアドレス
@@ -355,7 +395,7 @@ Contents of the .eh_frame section:
 0000000000404008
 </pre>
 
-{{ end_file('debugee1.c') }}
+{{ end_file('debuggee1.c') }}
 
 <p> この取得したアドレスをさきほどのプログラムに入れたらどうなるだろうか。 </p>
 <pre>
@@ -367,16 +407,16 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 };
 </pre>
 
-<p> これは、もはやダミーの情報ではなく、debugee1 というプログラムのための情報になるのだ。 </p>
+<p> これは、もはやダミーの情報ではなく、debugee1 というプログラムのためのデバッグ情報になるのだ。 </p>
 
-<p> このテーブルを使って、gdb の print 相当の機能を実装してみよう。 </p>
+<p> このテーブルを使って、gdb の print のような機能を実装してみよう。 </p>
 
 {{ start_file('debugger1.c') }}
 {{ include_source() }}
 {{ gcc('') }}
-{{ run_cmd(["./debugger1","int_value"], expected="int_value:1234, addr=404000
+{{ run_cmd(["./debugger1","int_value"], expected="int_value:9999, addr=404000
 ") }}
-{{ run_cmd(["./debugger1","str_value"], expected="str_value:Hello World, var_addr=404008, value_addr=402000
+{{ run_cmd(["./debugger1","str_value"], expected="str_value:@ello World, var_addr=404008
 ") }}
 {{ end_file('debugger1.c') }}
 
@@ -389,7 +429,93 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
   <li> 引数に str_value を指定した場合は、変数str_valueの値が文字列として表示される </li>
 </ul>
 
-<p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb のprintコマンドのようなものを実行するのに必要な情報として機能していることを確認しよう </p>
+<p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb の print コマンドのようなものを実行するのに必要な情報として機能していることを確認してほしい。 </p>
+
+<p> このテーブルは、<em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> データとなっている。 </p>
+
+<p> これが、デバッグ情報が持つ重要な機能のうちのひとつだ。 </p>
+
+<p> 実際のデバッグ情報が、このテーブルと同じような情報を持っていることを確認してみよう。</p>
+
+<p>
+  さきほどと同じように、readelf -w でデバッグ情報を見ていく。readelf -w は、デバッグ情報と関連するセクションを全て表示するが、表示するセクションを選ぶこともできる。
+  readelf -wi を使って、.debug_info セクションのみを表示してみよう。
+</p>
+
+
+{{ run_cmd(["readelf","-wi","debuggee1"]) }}
+
+<p> 次の箇所に注目しよう </p>
+
+<pre>
+ &lt;1&gt;&lt;2e&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;2f&gt;   DW_AT_name        : (間接文字列、オフセット: 0x52): int_value  <em> # シンボル名int_value </em>
+    &lt;33&gt;   DW_AT_decl_file   : 1
+    &lt;33&gt;   DW_AT_decl_line   : 1
+    &lt;34&gt;   DW_AT_decl_column : 5
+    &lt;35&gt;   DW_AT_type        : &lt;0x43&gt; <em> # この0x43が下の &lt;43&gt; と対応していて、signed int を意味する </em>
+    &lt;39&gt;   DW_AT_external    : 1
+    &lt;39&gt;   DW_AT_location    : 9 byte block: 3 0 40 40 0 0 0 0 0 	(DW_OP_addr: 404000) <em> # int_valueのアドレスは0x404000 </em>
+ &lt;1&gt;&lt;43&gt;: 省略番号: 4 (DW_TAG_base_type) <em> # signed int </em>
+    &lt;44&gt;   DW_AT_byte_size   : 4
+    &lt;45&gt;   DW_AT_encoding    : 5	(signed)
+    &lt;46&gt;   DW_AT_name        : int
+
+(.. 省略 ..)
+
+ &lt;1&gt;&lt;4a&gt;: 省略番号: 5 (DW_TAG_array_type) <em> # char [] 型 </em>
+    &lt;4b&gt;   DW_AT_type        : &lt;0x61&gt; <em> # 下の&lt;61&gt;と対応していて、char型を意味する </em>
+    &lt;4f&gt;   DW_AT_sibling     : &lt;0x5a&gt;
+
+(.. 省略 ..)
+
+ &lt;1&gt;&lt;61&gt;: 省略番号: 2 (DW_TAG_base_type) <em> # char 型 </em>
+    &lt;62&gt;   DW_AT_byte_size   : 1
+    &lt;63&gt;   DW_AT_encoding    : 6	(signed char)
+    &lt;64&gt;   DW_AT_name        : (間接文字列、オフセット: 0x5c): char
+
+(.. 省略 ..)
+
+ &lt;1&gt;&lt;68&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;69&gt;   DW_AT_name        : (間接文字列、オフセット: 0x36): str_value <em> # シンボル名str_value </em>
+    &lt;6d&gt;   DW_AT_decl_file   : 1
+    &lt;6d&gt;   DW_AT_decl_line   : 2
+    &lt;6e&gt;   DW_AT_decl_column : 6
+    &lt;6f&gt;   DW_AT_type        : &lt;0x4a&gt; <em> # 上の &lt;4a&gt; 対応して char[] を意味する </em>
+    &lt;73&gt;   DW_AT_external    : 1
+    &lt;73&gt;   DW_AT_location    : 9 byte block: 3 8 40 40 0 0 0 0 0 	(DW_OP_addr: 404008) <em> # str_valueのアドレスは0x404008 </em>
+</pre>
+
+<p> この情報は、さきほど作った </p>
+
+<pre>
+/* debugee1.c のデバッグ情報 */
+const struct VarDebugInfo debuginfo_for_debugee1[] = {
+    {"int_value", TYPE_INT, 0x404000},
+    {"str_value", TYPE_CHAR_PTR, 0x404008},
+    {NULL}                              /* 終端 */
+};
+</pre>
+
+<p>
+  このテーブルとかなり似たデータが含まれている。つまり、この.debug_info セクションを適切に読むことができれば、
+  上で見たdebuggee1.c のプログラムと同じように <em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> できるわけだ。
+</p>
+
+<p>
+  この.debug_infoに含まれる情報は、<em>DWARF (debugging with attributed record formats)</em>という仕様に従って、格納されている。
+  DWARFの構造は、少し複雑なので、ひととおりデバッグ情報について説明したあとで解説しよう。
+  しばらくは readelf -w の情報を参考に、読み進めていってほしい。
+</p>
+
+<!--
+<p>
+  それでは、実際に、この .debug_info セクションから、VarDebugInfo のテーブルを作るプログラムを書いてみよう。
+  このプログラムは、ELFファイルを操作する処理が含まれている。ELFファイルを操作するために知っておく構造については、リンカの章で説明しているので、そちらも参照してほしい。<span class="kokomade"> (まだ書いてないです。そのうち書きます) </span>
+</p>
+-->
+
+
 
 <p> <a href="../index.html"> 戻る </a> </p>
 

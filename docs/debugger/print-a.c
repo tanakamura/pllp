@@ -1,7 +1,7 @@
 #include <stdio.h>
-int value99 = 99;
-char *helloworld = "Hello World";
+int int_value = 99;
+char str_value[] = "Hello World";
 int main()
 {
-  printf("value99 = %d\n", value99);
+  printf("int_value = %d\n", int_value);
 }

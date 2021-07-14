@@ -14,32 +14,40 @@
 
 <h1> <a href="debugger.html"> デバッガ </a> </h1>
 
-  <p>
-    さて、これまで何度も使ってきたgdb、つまりデバッガだが、これがどのように動いているかを見ていこう。
-  </p>
+<p>
+  これまで何度も使ってきたgdb、つまりデバッガだが、これがどのように動いているかを見ていこう。
+</p>
 
-  <p>
-    "デバッガ" とはなんだろうか。
-    "デバッガ" というと、バグを取ってくれるようなツールに聞こえるが、みなさんご存知のとおり、デバッガはプログラマのかわりにバグを取ってくれるわけではない。
-    実際のデバッガの動作は実行中のプログラムの状態を見れるツール、つまり "プログラムの状態ビューワ" とでも言ったほうが、現実とあっているだろう。
-  </p>
+<p>
+  "デバッガ" とはなんだろうか。
+  "デバッガ" というと、バグを取ってくれるようなツールに聞こえるが、みなさんご存知のとおり、デバッガはプログラマのかわりにバグを取ってくれるわけではない。
+  実際のデバッガの動作は実行中のプログラムの状態を見れるツール、つまり "プログラムの状態ビューワ" とでも言ったほうが、現実とあっているだろう。
+</p>
 
-<p> この章では、まず、デバッガが必要とする基本的な操作について説明し、続けてデバッグ情報についても説明する。そのあと、その操作とデバッグ情報を組み合わせて、デバッガの機能を実現する方法について説明していく。 </p>
+<p>
+  個人的には'デバッガ"という名称は実態とあってない、とは思うが、この章では、慣習にしたがって、プログラムの状態を調査、変更するツールのことを"デバッガ"と呼び、
+  そのデバッガを使って実際に何かをすることを"デバッグ"と呼ぶ。
+  また、デバッグされるプログラムの対象を"デバッギ(debugee)"と呼ぶ。
+</p>
+
+<p>
+  この章では、まず、デバッガが必要とする基本的な操作について説明し、続けてデバッグ情報についても説明する。そのあと、その操作とデバッグ情報を組み合わせて、デバッガの機能を実現する方法について説明していく。
+</p>
 
 <h2> ptrace </h2>
 
-  <p>
-    Linux ではデバッガの実装時に役立つ、ptrace というシステムコールがある。
-  </p>
+<p>
+  Linux ではデバッガの実装時に役立つ、ptrace というシステムコールがある。
+</p>
 
-  <p>
-    <em>ptrace</em> は、対象となるプロセスの状態を監視し、変更できるシステムコールである。
-  </p>
+<p>
+  <em>ptrace</em> は、対象となるプロセスの状態を読み書きできるシステムコールである。
+</p>
 
-  <p>
-    デバッガを実装する場合、対象となるプログラムのメモリやレジスタを読んだり変更したりしたい場合は多いだろう。
-    ptrace を使えば、それが実現できる。
-  </p>
+<p>
+  デバッガを実装する場合、対象となるプログラムのメモリやレジスタを読み書きしたい場合が多い。
+  ptrace を使えば、それが実現できる。
+</p>
 
   
   <p><a href="ptrace1.c"> ptrace1.c </a><p>
@@ -53,30 +61,31 @@
 <span class="kt">int</span>
 <span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">argv</span><span class="p">)</span>
 <span class="p">{</span>
-    <span class="kt">uint64_t</span> <span class="n">x</span><span class="p">;</span>
+    <span class="k">volatile</span> <span class="kt">uint64_t</span> <span class="n">x</span><span class="p">;</span>  <span class="cm">/* 他のプログラムから読み書きする変数はvolatileにする */</span>
     <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
     <span class="k">if</span> <span class="p">(</span> <span class="p">(</span><span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="cm">/* 子プロセス */</span>
+        <span class="cm">/* 子プロセス(tracee) */</span>
         <span class="n">x</span> <span class="o">=</span> <span class="mh">0xaa55aa55</span><span class="p">;</span>
 
         <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="p">{</span>
             <span class="n">sleep</span><span class="p">(</span><span class="mi">10</span><span class="p">);</span>
         <span class="p">}</span>
     <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="cm">/* 親プロセス(tracer) */</span>
         <span class="kt">int</span> <span class="n">st</span><span class="p">;</span>
-
-        <span class="cm">/* 親プロセス */</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="mi">2000</span><span class="p">;</span>
 
         <span class="n">usleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
 
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象にする */</span>
-        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>                     <span class="cm">/* 子プロセスが停止するまで待機 */</span>
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象(tracee)にする */</span>
+        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* traceeが停止するまで待機 */</span>
 
-        <span class="n">x</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">x</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* traceeのメモリから値を取得 */</span>
         <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%x</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">x</span><span class="p">);</span>
 
-        <span class="n">kill</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">SIGKILL</span><span class="p">);</span>
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_DETACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* traceeを監視対象から外す */</span>
+
+        <span class="n">kill</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">SIGKILL</span><span class="p">);</span>  <span class="cm">/* 子プロセスの終了 */</span>
+        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
     <span class="p">}</span>
 
     <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
@@ -94,13 +103,13 @@ aa55aa55
   
 
 <p>
-  まず、PTRACE_ATTACHと対象プロセスのpidを引数にして、ptrace を呼び出す。これで、対象プロセスが操作可能になる。
+  まず、PTRACE_ATTACHと対象プロセスのpidを引数にして、ptrace を呼び出す。これで、対象プロセスがアタッチされる(操作可能になる)。
   ptraceの説明では、操作する側のプロセス(ここでは親プロセス)を <em>tracer</em>、操作される側(ここでは子プロセス)を<em>tracee</em>
   と呼んでいる。それにならって、ここでは同じようにtracer,traceeと呼ぶことにしよう。
 </p>
 
 <p>
-  tracer が tracee をアタッチすると、tracee は停止する。これは非同期に実行されるので、停止したのが確定するまで待つ。これは、waitpidを使う。
+  tracer が tracee をアタッチすると、tracee は停止する。これは非同期に実行されるので、停止したのが確定するまでwaitpidで待つ。
 </p>
 
 <p>
@@ -109,11 +118,15 @@ aa55aa55
 
 <p>
   この例では、tracee は、trace から fork したプロセスなので、変数 "x" のアドレスは同じになっている。そのため、PTRACE_PEEKDATA に x のアドレスを渡すと、traceeの変数"x"の値が取得できる。
-  fork しない場合は、変数名とアドレスの対応は、なんらかの方法で取得する必要がある。取得方法についてはあとで説明しよう。
+  fork しない場合は、変数名とアドレスの対応は、なんらかの方法で取得する必要がある。取得方法についてはあとでデバッグ情報のところで解説しよう。
+</p>
+
+<p>
+  tracerが必要な操作を終えたあとは、PTRACE_DETACHでデタッチする(操作を終了する)。traceeがアタッチされたままだと、シグナルがtracerに送られてしまい、挙動が変わってしまう。このプログラムはシグナルを使っていないので影響ないが、正しく処理するときはデタッチしておこう。
 </p>
 
 
-<p> tracee のメモリを書きかえたいときは、PTRACE_POKEDATA を使う </p>
+<p> tracee のメモリを書きかえたいときは、PTRACE_POKEDATA を使う。PTRACE_ATTACHで一時停止したプログラムは、PTRACE_CONT を使えば、再開できる。また、この例では使っていないが、再開したプログラムを再度一時停止したい場合は、SIGSTOPを止めたいスレッドに送る。 </p>
 
 
 <p><a href="ptrace2.c"> ptrace2.c </a><p>
@@ -127,28 +140,29 @@ aa55aa55
 <span class="kt">int</span>
 <span class="nf">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">argv</span><span class="p">)</span>
 <span class="p">{</span>
-    <span class="kt">uint64_t</span> <span class="n">x</span><span class="p">;</span>
+    <span class="k">volatile</span> <span class="kt">uint64_t</span> <span class="n">x</span><span class="p">;</span>  <span class="cm">/* 他のプログラムから読み書きする変数はvolatileにする */</span>
     <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
     <span class="k">if</span> <span class="p">(</span> <span class="p">(</span><span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="cm">/* 子プロセス */</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="mh">0xaa55aa55</span><span class="p">;</span>
-        <span class="n">sleep</span><span class="p">(</span><span class="mi">2</span><span class="p">);</span>
+        <span class="cm">/* 子プロセス(tracee) */</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="k">while</span> <span class="p">(</span><span class="n">x</span><span class="o">==</span><span class="mi">0</span><span class="p">)</span>  <span class="cm">/* tracerが書きかえてくれるまで待つ */</span>
+            <span class="p">;</span>
         <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%x</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="p">(</span><span class="kt">int</span><span class="p">)</span><span class="n">x</span><span class="p">);</span>
     <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="cm">/* 親プロセス(tracer) */</span>
         <span class="kt">int</span> <span class="n">st</span><span class="p">;</span>
 
-        <span class="cm">/* 親プロセス */</span>
-
         <span class="n">usleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象にする */</span>
-        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>                     <span class="cm">/* 子プロセスが停止するまで待機 */</span>
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象(tracee)にする */</span>
+        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* traceeが停止するまで待機 */</span>
 
         <span class="kt">uint64_t</span> <span class="n">newdata</span> <span class="o">=</span> <span class="mh">0x88888888</span><span class="p">;</span>
 
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_POKEDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="kt">uintptr_t</span><span class="p">)</span><span class="n">newdata</span><span class="p">);</span>
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_DETACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* 子プロセスを再開 */</span>
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_POKEDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">x</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="kt">uintptr_t</span><span class="p">)</span><span class="n">newdata</span><span class="p">);</span> <span class="cm">/* traceeのメモリへ書き込み */</span>
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_CONT</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* 停止したtraceeを再開 */</span>
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_DETACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* traceeを監視対象から外す */</span>
 
-        <span class="n">wait</span><span class="p">(</span><span class="o">&amp;</span><span class="n">st</span><span class="p">);</span>
+        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* 子プロセスの終了待ち */</span>
     <span class="p">}</span>
 
     <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
@@ -166,7 +180,7 @@ aa55aa55
   
 
 
-<p> メモリと同様に、traceeのレジスタを読み書きすることができる。読むときはPTRACE_GETREGS、書くときはPTRACE_SETREGSだ。</p>
+<p> メモリと同様に、traceeのレジスタを読み書きすることができる。読むときはPTRACE_GETREGS、書くときはPTRACE_SETREGSを使う。</p>
 
 
 <p><a href="ptrace3.c"> ptrace3.c </a><p>
@@ -183,42 +197,42 @@ aa55aa55
 <span class="p">{</span>
     <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
     <span class="k">if</span> <span class="p">(</span> <span class="p">(</span><span class="n">pid</span> <span class="o">=</span> <span class="n">fork</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="cm">/* 子プロセス */</span>
+        <span class="cm">/* 子プロセス(tracee) */</span>
         <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span>
           <span class="p">;</span>
     <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="cm">/* 親プロセス(tracer) */</span>
         <span class="kt">int</span> <span class="n">st</span><span class="p">;</span>
 
-        <span class="cm">/* 親プロセス */</span>
-
         <span class="n">usleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象にする */</span>
-        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* 子プロセスが停止するまで待機 */</span>
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_ATTACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* 子プロセスを監視対象(tracee)にする */</span>
+        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>  <span class="cm">/* traceeが停止するまで待機 */</span>
 
         <span class="k">struct</span> <span class="nc">user_regs_struct</span> <span class="n">regs</span><span class="p">;</span>
 
-        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_GETREGS</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">regs</span><span class="p">);</span>
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_GETREGS</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">regs</span><span class="p">);</span>  <span class="cm">/* traceeのレジスタの値を取得 */</span>
         <span class="n">printf</span><span class="p">(</span><span class="s">&quot;rip=%016llx, main=%016llx, delta=%llx</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="p">(</span><span class="kt">long</span> <span class="kt">long</span><span class="p">)</span><span class="n">regs</span><span class="p">.</span><span class="n">rip</span><span class="p">,</span> <span class="p">(</span><span class="kt">long</span> <span class="kt">long</span><span class="p">)</span><span class="n">main</span><span class="p">,</span> <span class="p">(</span><span class="kt">long</span> <span class="kt">long</span><span class="p">)</span><span class="n">regs</span><span class="p">.</span><span class="n">rip</span> <span class="o">-</span> <span class="p">(</span><span class="kt">long</span> <span class="kt">long</span><span class="p">)</span><span class="n">main</span><span class="p">);</span>
 
+        <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_DETACH</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span> <span class="cm">/* traceeを監視対象から外す */</span>
+
         <span class="n">kill</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="n">SIGKILL</span><span class="p">);</span>
+        <span class="n">waitpid</span><span class="p">(</span><span class="n">pid</span><span class="p">,</span> <span class="o">&amp;</span><span class="n">st</span><span class="p">,</span> <span class="mi">0</span><span class="p">);</span>
     <span class="p">}</span>
 
     <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
 <span class="p">}</span>
 </pre></div>
 
-  <pre>
+<pre>
  $ gcc -Wall -no-pie -o ptrace3 ptrace3.c
  $ ./ptrace3</pre>
 <pre>
 rip=00000000004011c1, main=0000000000401186, delta=3b
 </pre>
 
-  
 
 
 <p> プログラムカウンタが、main の近くにあることを確認しよう。 </p>
-
 
 <h2> Linux 以外 (ptraceが無い場合) </h2>
 
@@ -247,11 +261,19 @@ rip=00000000004011c1, main=0000000000401186, delta=3b
   Windowsでは、これらの操作と対応するAPIが用意されており、それを使えばこれらの操作を実現できる。
 </p>
 
-<ul>
-  <li> SuspendThread, ResumeThread : スレッドの一時停止、再開 </li>
-  <li> ReadProcessMemory, WriteProcessMemory : 対象プロセスのメモリの読み書き </li>
-  <li> GetThreadContext, SetThreadContext : 対象プロセスのレジスタの読み書き </li>
-</ul>
+<table>
+  <tr> <th> 操作 </th> <th> API </th> <th> 対応するLinuxでの操作 </th> </tr>
+
+  <tr> <td> デバッグの開始 </td> <td> DebugActiveProcess </td> <td> ptrace(PTRACE_ATTACH) </td> </tr>
+  <tr> <td> デバッグの終了 </td> <td> DebugActiveProcessStop </td> <td> ptrace(PTRACE_DETACH) </td> </tr>
+  <tr> <td> 実行の一時停止 </td> <td> SuspendThread </td> <td> SIGSTOPを送る </td> </tr>
+  <tr> <td> 実行の再開 </td> <td> ResumeThread </td> <td> ptrace(PTRACE_CONT) </td> </tr>
+  <tr> <td> メモリからの読み込み </td> <td> ReadProcessMemory </td> <td> ptrace(PTRACE_PEEKDATA) </td> </tr>
+  <tr> <td> メモリへの書き込み </td> <td> WriteProcessMemory </td> <td> ptrace(PTRACE_POKEDATA) </td> </tr>
+  <tr> <td> レジスタからの読み込み </td> <td> GetThreadContext </td> <td> ptrace(PTRACE_PEEKUSER) </td> </tr>
+  <tr> <td> レジスタへの書き込み </td> <td> SetThreadContext </td> <td> ptrace(PTRACE_POKEUSER) </td> </tr>
+</table>
+
 
 <h3> gdb stub(OSが無い場合) </h3>
 
@@ -289,26 +311,25 @@ rip=00000000004011c1, main=0000000000401186, delta=3b
 </p>
 
 </p>
-…が、プログラマがJTAGと言った場合は、ほぼ確実に、<em>CPUに搭載された状態観測用のハードウェアを使ってデバッグするインターフェース、ツール類のこと</em>を指す。
+…が、プログラマがJTAGと言った場合は、ほぼ確実に、<em>CPUに搭載されたデバッグ用のハードウェアを使ってデバッグするインターフェース、ツール類のこと</em>を指す。
 プログラマが言う"JTAG"は、本来の意味と少し違ってしまっていることに注意してほしい。
 </p>
 
 <p>
-  現代(と言ってもかなり昔からだが)のCPUは、その機能の一部に、「CPUやメモリの状態を読み書きする専用のハードウェア」が搭載されている。このハードウェアは、ほぼ確実にJTAG仕様に準拠した信号線を経由して、外部と繋がっている。そのため、この「CPUやメモリの状態を読み書きする専用のハードウェア」を使う場合は、JTAGケーブルを使って、プログラムの状態を観測することになる。
+  現代(と言ってもかなり昔からだが)のCPUは、その機能の一部に、CPUやメモリの状態を読み書きする「デバッグ用ハードウェア」が搭載されている。このハードウェアは、ほぼ確実にJTAG仕様に準拠した信号線を経由して、外部と繋がっている。そのため、この「デバッグ用のハードウェア」を使う場合は、JTAGケーブルを使って、プログラムの状態を観測することになる。
 </p>
 
 <p>
-  この、「JTAG経由で繋がった状態観測用のハードウェアを使ってgdbなどのデバッガを動かす」というのが、省略されて、「JTAGデバッグ」、そして、その周辺ツールが「JTAG」と呼ばれるようになっている。(筆者は、この用語の使いかたはWikipediaをWikiと略すよりひどいのではないかと思う。データの経路が名前になっているから、Wikipediaをインターネットと呼ぶようなものである)
+  この、「JTAG経由で繋がったデバッグ用のハードウェアを使ってgdbなどのデバッガを動かす」というのが、省略されて、「JTAGデバッグ」、そして、その周辺ツールが「JTAG」と呼ばれるようになっている。(筆者は、この用語の使いかたはWikipediaをWikiと略すよりひどいのではないかと思う。データの経路が名前になっているから、Wikipediaをインターネットと呼ぶようなものである)
 </p>
 
 <p>
-  「CPUやメモリの状態を読み書きする専用のハードウェア」ができることは、gdb stubとほとんど同じだと考えてもらってよい。メモリやレジスタを読み書きでき、CPU実行の一時停止、再開ができる。
+  「デバッグ用のハードウェア」は、ptraceやgdb stubとほぼ同じように、プログラムの実行状態の制御、メモリ・レジスタの読み書きができる。
 </p>
 
 <p>
-  gdb stubと違い、JTAG経由でCPUの状態を観測する場合は、ソフトウェアが完全に壊れて何も動かない場合や、ソフトウェアが初期化されていない状態でも使える。これは嬉しい場面が多いだろう。
-  gdb stub を動かすには、割り込みなどが正しく処理されている必要があり、割り込みが動かないような問題の状態を観測したい場合には使えない。
-  また、割り込みが動作して、シリアルケーブルが使えるようになるまでには、それなりの初期化が必要で、初期化処理を観測したい場合には、gdb stubは使えない。そのような場合でも、JTAG経由なら、CPUの状態を観測できる場合が多い。
+  デバッグ用のハードウェアは、CPUの状態とは独立して動くので、ソフトウェアが完全に壊れて何も動かない場合や、ソフトウェアが初期化されていない状態でも使える。
+  gdb stub を動かすには、割り込みなどが正しく処理されている必要があり、割り込みが動かないような問題をデバッグしたい場合や、割り込み等を初期化する前の状態をデバッグしたい場合には使えない。そのような場合でも、JTAG経由なら、デバッグできる場合が多いのは、助かる場面が多いだろう。
 </p>
 
 <p>
@@ -364,11 +385,11 @@ rip=00000000004011c1, main=0000000000401186, delta=3b
 
 <p><a href="print-a.c"> print-a.c </a><p>
 <div class="pygments"><pre><span></span><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
-<span class="kt">int</span> <span class="n">value99</span> <span class="o">=</span> <span class="mi">99</span><span class="p">;</span>
-<span class="kt">char</span> <span class="o">*</span><span class="n">helloworld</span> <span class="o">=</span> <span class="s">&quot;Hello World&quot;</span><span class="p">;</span>
+<span class="kt">int</span> <span class="n">int_value</span> <span class="o">=</span> <span class="mi">99</span><span class="p">;</span>
+<span class="kt">char</span> <span class="n">str_value</span><span class="p">[]</span> <span class="o">=</span> <span class="s">&quot;Hello World&quot;</span><span class="p">;</span>
 <span class="kt">int</span> <span class="nf">main</span><span class="p">()</span>
 <span class="p">{</span>
-  <span class="n">printf</span><span class="p">(</span><span class="s">&quot;value99 = %d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">value99</span><span class="p">);</span>
+  <span class="n">printf</span><span class="p">(</span><span class="s">&quot;int_value = %d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">int_value</span><span class="p">);</span>
 <span class="p">}</span>
 </pre></div>
 
@@ -385,31 +406,32 @@ Reading symbols from ./print-a...
 Starting program: /home/tanakmura/src/pllp/docs/debugger/print-a 
 
 Temporary breakpoint 1, main () at print-a.c:6
-6	  printf("value99 = %d\n", value99);
-(gdb) <span class="gdb-command">print value99
+6	  printf("int_value = %d\n", int_value);
+(gdb) <span class="gdb-command">print int_value
 </span>$1 = 99
-(gdb) <span class="gdb-command">print helloworld
-</span>$2 = 0x402004 "Hello World"
-(gdb) <span class="gdb-command">set value99=123456
+(gdb) <span class="gdb-command">print str_value
+</span>$2 = "Hello World"
+(gdb) <span class="gdb-command">set int_value=123456
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
-value99 = 123456
-[Inferior 1 (process 340606) exited normally]
+int_value = 123456
+[Inferior 1 (process 413623) exited normally]
 </pre>
 
 
 <pre>
-(gdb) <span class="gdb-command">print value99 # 変数名 "value99" が使える</span>
+(gdb) <span class="gdb-command">print int_value # 変数名 "int_value" が使える</span>
 </pre>
 
-<p> gdb が、変数 "value99","helloworld" という変数の名前をそのまま使えていることを確認してほしい。
+<p>
+  gdb が、変数 "int_value","str_value" という変数の名前をそのまま使えていることを確認してほしい。
   さらに、変数の型に応じて、適切な表示方法を採用しているのも確認してほしい。
-  int型の変数に対しては、数字を表示し、char*型の変数に対しては、文字列を表示している。
+  int型の変数に対しては、数字を表示し、char[]型の変数に対しては、文字列を表示している。
 </p>
 
 <p>
   CPUが実行する時に使うデータは、メモリ上に展開されたバイナリデータだけで、操作するデータの変数名や型などは、実行時には必要ではない。
-  ところが、デバッガからプログラムを実行すると、そこに変数名や型が存在するかのようにプログラムの状態を操作できるのだ。これはどうやっているのだろうか。
+  ところが、デバッガからプログラムを実行すると、そこに変数名や型が存在するかのようにプログラムの状態を操作できるのだ。これはどうやって実現しているのだろうか。
 </p>
 
 <p>
@@ -455,8 +477,8 @@ Contents of the .eh_frame section:
 </p>
 
 <pre>
- (gdb) print value99
- (gdb) set value99=123456
+ (gdb) print int_value
+ (gdb) set int_value=123456
 </pre>
 
 <p>
@@ -473,7 +495,7 @@ Contents of the .eh_frame section:
 </p>
 
 <ol>
-  <li> value99 という名前から、型情報とアドレスを取得する </li>
+  <li> int_value という名前から、型情報とアドレスを取得する </li>
   <li> ptrace を使って、変数のアドレスから型のサイズ分バイト列を取得する </li>
   <li> 取得したバイト列を型情報に従って表示する </li>
 </ol>
@@ -498,16 +520,16 @@ Contents of the .eh_frame section:
 
 <span class="k">enum</span> <span class="n">var_type</span> <span class="p">{</span>
     <span class="n">TYPE_INT</span><span class="p">,</span>
-    <span class="n">TYPE_CHAR_PTR</span>
+    <span class="n">TYPE_CHAR_ARRAY</span>
 <span class="p">};</span>
 
-<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="nf">type_to_str</span><span class="p">(</span><span class="k">enum</span> <span class="n">var_type</span> <span class="n">t</span><span class="p">)</span>
+<span class="k">static</span> <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="nf">type_to_str</span><span class="p">(</span><span class="k">enum</span> <span class="n">var_type</span> <span class="n">t</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="k">switch</span> <span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="p">{</span>
     <span class="k">case</span> <span class="nl">TYPE_INT</span><span class="p">:</span>
         <span class="k">return</span> <span class="s">&quot;int&quot;</span><span class="p">;</span>
-    <span class="k">case</span> <span class="nl">TYPE_CHAR_PTR</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s">&quot;char*&quot;</span><span class="p">;</span>
+    <span class="k">case</span> <span class="nl">TYPE_CHAR_ARRAY</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&quot;char[]&quot;</span><span class="p">;</span>
     <span class="k">default</span><span class="o">:</span>
         <span class="k">return</span> <span class="s">&quot;unknown type&quot;</span><span class="p">;</span>
     <span class="p">}</span>
@@ -520,9 +542,9 @@ Contents of the .eh_frame section:
 <span class="p">};</span>
 
 <span class="cm">/* デバッグ情報のようなもの */</span>
-<span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="n">dummy_debuginfo</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
+<span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="n">dummy_debuginfo</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
     <span class="p">{</span><span class="s">&quot;int_value&quot;</span><span class="p">,</span> <span class="n">TYPE_INT</span><span class="p">,</span> <span class="mh">0x8000</span><span class="p">},</span>
-    <span class="p">{</span><span class="s">&quot;str_value&quot;</span><span class="p">,</span> <span class="n">TYPE_CHAR_PTR</span><span class="p">,</span> <span class="mh">0x8008</span><span class="p">},</span>
+    <span class="p">{</span><span class="s">&quot;str_value&quot;</span><span class="p">,</span> <span class="n">TYPE_CHAR_ARRAY</span><span class="p">,</span> <span class="mh">0x8008</span><span class="p">},</span>
     <span class="p">{</span><span class="nb">NULL</span><span class="p">}</span>                              <span class="cm">/* 終端 */</span>
 <span class="p">};</span>
 
@@ -562,7 +584,21 @@ Contents of the .eh_frame section:
 
 
 <p>
-  これは、テーブルから、シンボルの情報を取得するプログラムだ。ここでは、値は特に意味のない値だが、文字列をプログラムに渡すと、その型とアドレスのようなものが出力されることを確認してほしい。
+  これは、以下のテーブルから、文字列と関連付けられた情報を取得するプログラムだ。
+</p>
+
+<pre>
+/* デバッグ情報のようなもの */
+const struct VarDebugInfo dummy_debuginfo[] = {
+    {"int_value", TYPE_INT, 0x8000},
+    {"str_value", TYPE_CHAR_ARRAY, 0x8008},
+    {NULL}                              /* 終端 */
+};
+</pre>
+
+
+<p>
+ここでは、テーブルに入っている値は意味のない値だが、とりあえず何か名前を指定すると、その名前と関連する情報が表示される点を確認してほしい。
 </p>
 
 <pre>
@@ -571,17 +607,17 @@ Contents of the .eh_frame section:
 
 <pre>
  $ ./dummy-debuginfo int_value 
-sym: int_value, type:int, addr=0x0000000000008000
+sym: int_value, type:int, addr=0x0000000000008000 <em> # "int_value" という文字列と関連する情報が表示される </em>
 
  $ ./dummy-debuginfo str_value 
-sym: str_value, type:char*, addr=0x0000000000008008
+sym: str_value, type:char[], addr=0x0000000000008008 <em> # "str_value" という文字列と関連する情報が表示される </em>
 
 </pre>
 
 
 
 <p>
-  ここでは、dummy_debuginfo には意味のない値が入っているが、ここに意味のある値が入っていたらどうなるだろうか。
+  では、この dummy_debuginfo に意味のある値が入っていたらどうなるだろうか。
 </p>
 
 <p> 次のプログラムをコンパイルしたのち、readelf -s を使って、int_value, str_value のアドレスを取得しよう。
@@ -589,35 +625,40 @@ sym: str_value, type:char*, addr=0x0000000000008008
  </p>
 
 
-<p><a href="debugee1.c"> debugee1.c </a><p>
+<p><a href="debuggee1.c"> debuggee1.c </a><p>
 <div class="pygments"><pre><span></span><span class="kt">int</span> <span class="n">int_value</span> <span class="o">=</span> <span class="mi">1234</span><span class="p">;</span>
-<span class="kt">char</span> <span class="o">*</span><span class="n">str_value</span> <span class="o">=</span> <span class="s">&quot;Hello World&quot;</span><span class="p">;</span>
+<span class="kt">char</span> <span class="n">str_value</span><span class="p">[]</span> <span class="o">=</span> <span class="s">&quot;Hello World&quot;</span><span class="p">;</span>
 
 <span class="kt">int</span> <span class="nf">_start</span><span class="p">()</span> <span class="p">{</span>
+  <span class="n">int_value</span> <span class="o">=</span> <span class="mi">9999</span><span class="p">;</span>
+  <span class="n">str_value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="sc">&#39;@&#39;</span><span class="p">;</span>
+
+  <span class="k">asm</span> <span class="k">volatile</span> <span class="p">(</span><span class="s">&quot; &quot;</span>  <span class="o">:::</span> <span class="s">&quot;memory&quot;</span><span class="p">);</span>  <span class="cm">/* メモリへ必ず書き込むようにする */</span>
+
   <span class="k">while</span> <span class="p">(</span><span class="mi">1</span><span class="p">)</span>
     <span class="p">;</span>
 <span class="p">}</span>
 </pre></div>
 
 <pre>
- $ gcc -no-pie -nostartfiles -nostdlib -o debugee1 debugee1.c
+ $ gcc -no-pie -g -nostartfiles -nostdlib -o debuggee1 debuggee1.c
 </pre>
 
 <pre>
- $ readelf -s debugee1 
+ $ readelf -s debuggee1 
 
-Symbol table '.symtab' contains 10 entries:
+Symbol table &#x27;.symtab&#x27; contains 10 entries:
   番号:      値         サイズ タイプ  Bind   Vis      索引名
      0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT  UND 
-     1: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS debugee1.c
+     1: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS debuggee1.c
      2: 0000000000000000     0 FILE    LOCAL  DEFAULT  ABS 
-     3: 000000000040200c     0 NOTYPE  LOCAL  DEFAULT    5 __GNU_EH_FRAME_HDR
-     4: 0000000000404008     8 OBJECT  GLOBAL DEFAULT    7 str_value
-     5: 0000000000404000     4 OBJECT  GLOBAL DEFAULT    7 int_value
-     6: 0000000000401000     6 FUNC    GLOBAL DEFAULT    3 _start
-     7: 0000000000404010     0 NOTYPE  GLOBAL DEFAULT    7 __bss_start
-     8: 0000000000404010     0 NOTYPE  GLOBAL DEFAULT    7 _edata
-     9: 0000000000404010     0 NOTYPE  GLOBAL DEFAULT    7 _end
+     3: 0000000000402000     0 NOTYPE  LOCAL  DEFAULT    4 __GNU_EH_FRAME_HDR
+     4: 0000000000404008    12 OBJECT  GLOBAL DEFAULT    6 str_value
+     5: 0000000000404000     4 OBJECT  GLOBAL DEFAULT    6 int_value
+     6: 0000000000401000    23 FUNC    GLOBAL DEFAULT    3 _start
+     7: 0000000000404014     0 NOTYPE  GLOBAL DEFAULT    6 __bss_start
+     8: 0000000000404014     0 NOTYPE  GLOBAL DEFAULT    6 _edata
+     9: 0000000000404018     0 NOTYPE  GLOBAL DEFAULT    6 _end
 
 </pre>
 
@@ -641,9 +682,9 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 };
 </pre>
 
-<p> これは、もはやダミーの情報ではなく、debugee1 というプログラムのための情報になるのだ。 </p>
+<p> これは、もはやダミーの情報ではなく、debugee1 というプログラムのためのデバッグ情報になるのだ。 </p>
 
-<p> このテーブルを使って、gdb の print 相当の機能を実装してみよう。 </p>
+<p> このテーブルを使って、gdb の print のような機能を実装してみよう。 </p>
 
 
 <p><a href="debugger1.c"> debugger1.c </a><p>
@@ -659,20 +700,8 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 
 <span class="k">enum</span> <span class="n">var_type</span> <span class="p">{</span>
     <span class="n">TYPE_INT</span><span class="p">,</span>
-    <span class="n">TYPE_CHAR_PTR</span>
+    <span class="n">TYPE_CHAR_ARRAY</span>
 <span class="p">};</span>
-
-<span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="nf">type_to_str</span><span class="p">(</span><span class="k">enum</span> <span class="n">var_type</span> <span class="n">t</span><span class="p">)</span>
-<span class="p">{</span>
-    <span class="k">switch</span> <span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="p">{</span>
-    <span class="k">case</span> <span class="nl">TYPE_INT</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s">&quot;int&quot;</span><span class="p">;</span>
-    <span class="k">case</span> <span class="nl">TYPE_CHAR_PTR</span><span class="p">:</span>
-        <span class="k">return</span> <span class="s">&quot;char*&quot;</span><span class="p">;</span>
-    <span class="k">default</span><span class="o">:</span>
-        <span class="k">return</span> <span class="s">&quot;unknown type&quot;</span><span class="p">;</span>
-    <span class="p">}</span>
-<span class="p">}</span>
 
 <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="p">{</span>
     <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">symbol</span><span class="p">;</span>
@@ -680,24 +709,24 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
     <span class="kt">long</span> <span class="n">var_addr</span><span class="p">;</span>
 <span class="p">};</span>
 
-<span class="cm">/* debugee1.c のデバッグ情報 */</span>
-<span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="n">debuginfo_for_debugee1</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
+<span class="cm">/* debuggee1.c のデバッグ情報 */</span>
+<span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="n">debuginfo_for_debuggee1</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
     <span class="cm">/* var_addr には readelf -s で取得したアドレスを入れる */</span>
     <span class="p">{</span><span class="s">&quot;int_value&quot;</span><span class="p">,</span> <span class="n">TYPE_INT</span><span class="p">,</span> <span class="mh">0x404000</span><span class="p">},</span>
-    <span class="p">{</span><span class="s">&quot;str_value&quot;</span><span class="p">,</span> <span class="n">TYPE_CHAR_PTR</span><span class="p">,</span> <span class="mh">0x404008</span><span class="p">},</span>
+    <span class="p">{</span><span class="s">&quot;str_value&quot;</span><span class="p">,</span> <span class="n">TYPE_CHAR_ARRAY</span><span class="p">,</span> <span class="mh">0x404008</span><span class="p">},</span>
     <span class="p">{</span><span class="nb">NULL</span><span class="p">}</span>                              <span class="cm">/* 終端 */</span>
 <span class="p">};</span>
 <span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span>
 <span class="n">extract_var_debug_info</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">symbol</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
-        <span class="k">if</span> <span class="p">(</span><span class="n">debuginfo_for_debugee1</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">debuginfo_for_debuggee1</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
             <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;cannot find debug info for &#39;%s&#39;.</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">symbol</span><span class="p">);</span>
             <span class="n">abort</span><span class="p">();</span>
         <span class="p">}</span>
 
-        <span class="k">if</span> <span class="p">(</span><span class="n">strcmp</span><span class="p">(</span><span class="n">debuginfo_for_debugee1</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-            <span class="k">return</span> <span class="o">&amp;</span><span class="n">debuginfo_for_debugee1</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">strcmp</span><span class="p">(</span><span class="n">debuginfo_for_debuggee1</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="o">&amp;</span><span class="n">debuginfo_for_debuggee1</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
         <span class="p">}</span>
     <span class="p">}</span>
 <span class="p">}</span>
@@ -706,7 +735,6 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 <span class="n">print_var_info</span><span class="p">(</span><span class="kt">int</span> <span class="n">pid</span><span class="p">,</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span><span class="n">info</span><span class="p">)</span>
 <span class="p">{</span>
     <span class="kt">int</span> <span class="n">v</span><span class="p">;</span>
-    <span class="kt">long</span> <span class="n">ptr</span><span class="p">;</span>
     <span class="kt">char</span> <span class="n">buffer</span><span class="p">[</span><span class="mi">1024</span><span class="p">];</span>
 
     <span class="k">switch</span> <span class="p">(</span><span class="n">info</span><span class="o">-&gt;</span><span class="n">type</span><span class="p">)</span> <span class="p">{</span>
@@ -715,16 +743,15 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
         <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s:%d, addr=%lx</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">symbol</span><span class="p">,</span> <span class="n">v</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">);</span>
         <span class="k">break</span><span class="p">;</span>
 
-    <span class="k">case</span> <span class="nl">TYPE_CHAR_PTR</span><span class="p">:</span>
-        <span class="n">ptr</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">),</span> <span class="mi">0</span><span class="p">);</span>
+    <span class="k">case</span> <span class="nl">TYPE_CHAR_ARRAY</span><span class="p">:</span>
         <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
-            <span class="kt">uint8_t</span> <span class="n">v8</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">ptr</span><span class="o">+</span><span class="n">i</span><span class="p">),</span> <span class="mi">0</span><span class="p">);</span>
+            <span class="kt">uint8_t</span> <span class="n">v8</span> <span class="o">=</span> <span class="n">ptrace</span><span class="p">(</span><span class="n">PTRACE_PEEKDATA</span><span class="p">,</span> <span class="n">pid</span><span class="p">,</span> <span class="p">(</span><span class="kt">void</span><span class="o">*</span><span class="p">)(</span><span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="o">+</span><span class="n">i</span><span class="p">),</span> <span class="mi">0</span><span class="p">);</span>
             <span class="n">buffer</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">v8</span><span class="p">;</span>
             <span class="k">if</span> <span class="p">(</span><span class="n">v8</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
                 <span class="k">break</span><span class="p">;</span>
             <span class="p">}</span>
         <span class="p">}</span>
-        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s:%s, var_addr=%lx, value_addr=%lx</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">symbol</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">,</span> <span class="n">ptr</span><span class="p">);</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;%s:%s, var_addr=%lx</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">symbol</span><span class="p">,</span> <span class="n">buffer</span><span class="p">,</span> <span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">);</span>
         <span class="k">break</span><span class="p">;</span>
 
     <span class="k">default</span><span class="o">:</span>
@@ -740,16 +767,16 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
         <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
     <span class="p">}</span>
 
-    <span class="kt">int</span> <span class="n">r</span> <span class="o">=</span> <span class="n">access</span><span class="p">(</span><span class="s">&quot;./debugee1&quot;</span><span class="p">,</span> <span class="n">X_OK</span><span class="p">);</span>
+    <span class="kt">int</span> <span class="n">r</span> <span class="o">=</span> <span class="n">access</span><span class="p">(</span><span class="s">&quot;./debuggee1&quot;</span><span class="p">,</span> <span class="n">X_OK</span><span class="p">);</span>
     <span class="k">if</span> <span class="p">(</span><span class="n">r</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;cannot find program `debugee1` (please compile debugee1.c)</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
+        <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;cannot find program `debuggee1` (please compile debuggee1.c)</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">);</span>
         <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
     <span class="p">}</span>
 
     <span class="kt">int</span> <span class="n">pid</span><span class="p">;</span>
     <span class="k">if</span> <span class="p">(</span> <span class="p">(</span><span class="n">pid</span><span class="o">=</span><span class="n">fork</span><span class="p">())</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
-        <span class="kt">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;./debugee1&quot;</span><span class="p">,</span><span class="nb">NULL</span><span class="p">};</span>
-        <span class="n">execve</span><span class="p">(</span><span class="s">&quot;./debugee1&quot;</span><span class="p">,</span> <span class="n">argv</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
+        <span class="kt">char</span> <span class="o">*</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s">&quot;./debuggee1&quot;</span><span class="p">,</span><span class="nb">NULL</span><span class="p">};</span>
+        <span class="n">execve</span><span class="p">(</span><span class="s">&quot;./debuggee1&quot;</span><span class="p">,</span> <span class="n">argv</span><span class="p">,</span> <span class="nb">NULL</span><span class="p">);</span>
     <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
         <span class="kt">int</span> <span class="n">st</span><span class="p">;</span>
         <span class="n">usleep</span><span class="p">(</span><span class="mi">1000</span><span class="p">);</span>
@@ -775,13 +802,13 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 
 <pre>
  $ ./debugger1 int_value 
-int_value:1234, addr=404000
+int_value:9999, addr=404000
 
 </pre>
 
 <pre>
  $ ./debugger1 str_value 
-str_value:Hello World, var_addr=404008, value_addr=402000
+str_value:@ello World, var_addr=404008
 
 </pre>
 
@@ -796,7 +823,143 @@ str_value:Hello World, var_addr=404008, value_addr=402000
   <li> 引数に str_value を指定した場合は、変数str_valueの値が文字列として表示される </li>
 </ul>
 
-<p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb のprintコマンドのようなものを実行するのに必要な情報として機能していることを確認しよう </p>
+<p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb の print コマンドのようなものを実行するのに必要な情報として機能していることを確認してほしい。 </p>
+
+<p> このテーブルは、<em> シンボル名をキーにして、そのシンボルと関連する情報を取得できるデータ </em> となっている。これが、デバッグ情報が持つ重要な機能のうちのひとつだ。
+  </p>
+
+<p> それでは、実際のデバッグ情報が、このテーブルと同じような情報を持っていることを確認していこう。</p>
+
+<p>
+  さきほどと同じように、readelf -w でデバッグ情報を見ていく。readelf -w は、デバッグ情報と関連するセクションを全て表示するが、表示するセクションを選ぶこともできる。
+  readelf -wi を使って、.debug_info セクションのみを表示してみよう。
+</p>
+
+
+<pre>
+ $ readelf -wi debuggee1 
+.debug_info セクションの内容:
+
+  コンパイル単位 @ オフセット 0x0:
+   長さ:        0x98 (32-bit)
+   バージョン:    5
+   Unit Type:     DW_UT_compile (1)
+   省略オフセット: 0x0
+   ポインタサイズ:8
+ &lt;0&gt;&lt;c&gt;: 省略番号: 3 (DW_TAG_compile_unit)
+    &lt;d&gt;   DW_AT_producer    : (間接文字列、オフセット: 0x7): GNU C17 11.1.0 -mtune=generic -march=x86-64 -g
+    &lt;11&gt;   DW_AT_language    : 29	(C11)
+    &lt;12&gt;   DW_AT_name        : (間接行文字列、オフセット: 0x27): debuggee1.c
+    &lt;16&gt;   DW_AT_comp_dir    : (間接行文字列、オフセット: 0x0): /home/tanakmura/src/pllp/docs/debugger
+    &lt;1a&gt;   DW_AT_low_pc      : 0x401000
+    &lt;22&gt;   DW_AT_high_pc     : 0x17
+    &lt;2a&gt;   DW_AT_stmt_list   : 0x0
+ &lt;1&gt;&lt;2e&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;2f&gt;   DW_AT_name        : (間接文字列、オフセット: 0x52): int_value
+    &lt;33&gt;   DW_AT_decl_file   : 1
+    &lt;33&gt;   DW_AT_decl_line   : 1
+    &lt;34&gt;   DW_AT_decl_column : 5
+    &lt;35&gt;   DW_AT_type        : &lt;0x43&gt;
+    &lt;39&gt;   DW_AT_external    : 1
+    &lt;39&gt;   DW_AT_location    : 9 byte block: 3 0 40 40 0 0 0 0 0 	(DW_OP_addr: 404000)
+ &lt;1&gt;&lt;43&gt;: 省略番号: 4 (DW_TAG_base_type)
+    &lt;44&gt;   DW_AT_byte_size   : 4
+    &lt;45&gt;   DW_AT_encoding    : 5	(signed)
+    &lt;46&gt;   DW_AT_name        : int
+ &lt;1&gt;&lt;4a&gt;: 省略番号: 5 (DW_TAG_array_type)
+    &lt;4b&gt;   DW_AT_type        : &lt;0x61&gt;
+    &lt;4f&gt;   DW_AT_sibling     : &lt;0x5a&gt;
+ &lt;2&gt;&lt;53&gt;: 省略番号: 6 (DW_TAG_subrange_type)
+    &lt;54&gt;   DW_AT_type        : &lt;0x5a&gt;
+    &lt;58&gt;   DW_AT_upper_bound : 11
+ &lt;2&gt;&lt;59&gt;: Abbrev Number: 0
+ &lt;1&gt;&lt;5a&gt;: 省略番号: 2 (DW_TAG_base_type)
+    &lt;5b&gt;   DW_AT_byte_size   : 8
+    &lt;5c&gt;   DW_AT_encoding    : 7	(unsigned)
+    &lt;5d&gt;   DW_AT_name        : (間接文字列、オフセット: 0x40): long unsigned int
+ &lt;1&gt;&lt;61&gt;: 省略番号: 2 (DW_TAG_base_type)
+    &lt;62&gt;   DW_AT_byte_size   : 1
+    &lt;63&gt;   DW_AT_encoding    : 6	(signed char)
+    &lt;64&gt;   DW_AT_name        : (間接文字列、オフセット: 0x5c): char
+ &lt;1&gt;&lt;68&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;69&gt;   DW_AT_name        : (間接文字列、オフセット: 0x36): str_value
+    &lt;6d&gt;   DW_AT_decl_file   : 1
+    &lt;6d&gt;   DW_AT_decl_line   : 2
+    &lt;6e&gt;   DW_AT_decl_column : 6
+    &lt;6f&gt;   DW_AT_type        : &lt;0x4a&gt;
+    &lt;73&gt;   DW_AT_external    : 1
+    &lt;73&gt;   DW_AT_location    : 9 byte block: 3 8 40 40 0 0 0 0 0 	(DW_OP_addr: 404008)
+ &lt;1&gt;&lt;7d&gt;: 省略番号: 7 (DW_TAG_subprogram)
+    &lt;7e&gt;   DW_AT_external    : 1
+    &lt;7e&gt;   DW_AT_name        : (間接文字列、オフセット: 0x0): _start
+    &lt;82&gt;   DW_AT_decl_file   : 1
+    &lt;83&gt;   DW_AT_decl_line   : 4
+    &lt;84&gt;   DW_AT_decl_column : 5
+    &lt;85&gt;   DW_AT_type        : &lt;0x43&gt;
+    &lt;89&gt;   DW_AT_low_pc      : 0x401000
+    &lt;91&gt;   DW_AT_high_pc     : 0x17
+    &lt;99&gt;   DW_AT_frame_base  : 1 byte block: 9c 	(DW_OP_call_frame_cfa)
+    &lt;9b&gt;   DW_AT_call_all_calls: 1
+ &lt;1&gt;&lt;9b&gt;: Abbrev Number: 0
+
+
+</pre>
+
+
+<p> 次の箇所に注目しよう </p>
+
+<pre>
+ &lt;1&gt;&lt;2e&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;2f&gt;   DW_AT_name        : (間接文字列、オフセット: 0x52): int_value  <em> # シンボル名int_value </em>
+    &lt;33&gt;   DW_AT_decl_file   : 1
+    &lt;33&gt;   DW_AT_decl_line   : 1
+    &lt;34&gt;   DW_AT_decl_column : 5
+    &lt;35&gt;   DW_AT_type        : &lt;0x43&gt; <em> # この0x43が下の &lt;43&gt; と対応していて、signed int を意味する </em>
+    &lt;39&gt;   DW_AT_external    : 1
+    &lt;39&gt;   DW_AT_location    : 9 byte block: 3 0 40 40 0 0 0 0 0 	(DW_OP_addr: 404000) <em> # int_valueのアドレスは0x404000 </em>
+ &lt;1&gt;&lt;43&gt;: 省略番号: 4 (DW_TAG_base_type) <em> # signed int </em>
+    &lt;44&gt;   DW_AT_byte_size   : 4
+    &lt;45&gt;   DW_AT_encoding    : 5	(signed)
+    &lt;46&gt;   DW_AT_name        : int
+
+(.. 省略 ..)
+
+ &lt;1&gt;&lt;4a&gt;: 省略番号: 5 (DW_TAG_array_type) <em> # char [] 型 </em>
+    &lt;4b&gt;   DW_AT_type        : &lt;0x61&gt; <em> # 下の&lt;61&gt;と対応していて、char型を意味する </em>
+    &lt;4f&gt;   DW_AT_sibling     : &lt;0x5a&gt;
+
+(.. 省略 ..)
+
+ &lt;1&gt;&lt;61&gt;: 省略番号: 2 (DW_TAG_base_type) <em> # char 型 </em>
+    &lt;62&gt;   DW_AT_byte_size   : 1
+    &lt;63&gt;   DW_AT_encoding    : 6	(signed char)
+    &lt;64&gt;   DW_AT_name        : (間接文字列、オフセット: 0x5c): char
+
+(.. 省略 ..)
+
+ &lt;1&gt;&lt;68&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;69&gt;   DW_AT_name        : (間接文字列、オフセット: 0x36): str_value <em> # シンボル名str_value </em>
+    &lt;6d&gt;   DW_AT_decl_file   : 1
+    &lt;6d&gt;   DW_AT_decl_line   : 2
+    &lt;6e&gt;   DW_AT_decl_column : 6
+    &lt;6f&gt;   DW_AT_type        : &lt;0x4a&gt; <em> # 上の &lt;4a&gt; 対応して char[] を意味する </em>
+    &lt;73&gt;   DW_AT_external    : 1
+    &lt;73&gt;   DW_AT_location    : 9 byte block: 3 8 40 40 0 0 0 0 0 	(DW_OP_addr: 404008) <em> # str_valueのアドレスは0x404008 </em>
+</pre>
+
+<p> この情報は、さきほど作った </p>
+
+<pre>
+/* debugee1.c のデバッグ情報 */
+const struct VarDebugInfo debuginfo_for_debugee1[] = {
+    {"int_value", TYPE_INT, 0x404000},
+    {"str_value", TYPE_CHAR_PTR, 0x404008},
+    {NULL}                              /* 終端 */
+};
+</pre>
+
+<p> このテーブルとかなり似たデータが含まれている。 </p>
+
 
 <p> <a href="../index.html"> 戻る </a> </p>
 

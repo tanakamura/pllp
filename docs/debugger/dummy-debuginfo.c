@@ -4,16 +4,16 @@
 
 enum var_type {
     TYPE_INT,
-    TYPE_CHAR_PTR
+    TYPE_CHAR_ARRAY
 };
 
-const char *type_to_str(enum var_type t)
+static const char *type_to_str(enum var_type t)
 {
     switch (t) {
     case TYPE_INT:
         return "int";
-    case TYPE_CHAR_PTR:
-        return "char*";
+    case TYPE_CHAR_ARRAY:
+        return "char[]";
     default:
         return "unknown type";
     }
@@ -26,9 +26,9 @@ struct VarDebugInfo {
 };
 
 /* デバッグ情報のようなもの */
-const struct VarDebugInfo dummy_debuginfo[] = {
+static const struct VarDebugInfo dummy_debuginfo[] = {
     {"int_value", TYPE_INT, 0x8000},
-    {"str_value", TYPE_CHAR_PTR, 0x8008},
+    {"str_value", TYPE_CHAR_ARRAY, 0x8008},
     {NULL}                              /* 終端 */
 };
 
