@@ -415,7 +415,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 int_value = 123456
-[Inferior 1 (process 413623) exited normally]
+[Inferior 1 (process 431161) exited normally]
 </pre>
 
 
@@ -825,10 +825,11 @@ str_value:@ello World, var_addr=404008
 
 <p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb の print コマンドのようなものを実行するのに必要な情報として機能していることを確認してほしい。 </p>
 
-<p> このテーブルは、<em> シンボル名をキーにして、そのシンボルと関連する情報を取得できるデータ </em> となっている。これが、デバッグ情報が持つ重要な機能のうちのひとつだ。
-  </p>
+<p> このテーブルは、<em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> データとなっている。 </p>
 
-<p> それでは、実際のデバッグ情報が、このテーブルと同じような情報を持っていることを確認していこう。</p>
+<p> これが、デバッグ情報が持つ重要な機能のうちのひとつだ。 </p>
+
+<p> 実際のデバッグ情報が、このテーブルと同じような情報を持っていることを確認してみよう。</p>
 
 <p>
   さきほどと同じように、readelf -w でデバッグ情報を見ていく。readelf -w は、デバッグ情報と関連するセクションを全て表示するが、表示するセクションを選ぶこともできる。
@@ -958,7 +959,24 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 };
 </pre>
 
-<p> このテーブルとかなり似たデータが含まれている。 </p>
+<p>
+  このテーブルとかなり似たデータが含まれている。つまり、この.debug_info セクションを適切に読むことができれば、
+  上で見たdebuggee1.c のプログラムと同じように <em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> できるわけだ。
+</p>
+
+<p>
+  この.debug_infoに含まれる情報は、<em>DWARF (debugging with attributed record formats)</em>という仕様に従って、格納されている。
+  DWARFの構造は、少し複雑なので、ひととおりデバッグ情報について説明したあとで解説しよう。
+  しばらくは readelf -w の情報を参考に、読み進めていってほしい。
+</p>
+
+<!--
+<p>
+  それでは、実際に、この .debug_info セクションから、VarDebugInfo のテーブルを作るプログラムを書いてみよう。
+  このプログラムは、ELFファイルを操作する処理が含まれている。ELFファイルを操作するために知っておく構造については、リンカの章で説明しているので、そちらも参照してほしい。<span class="kokomade"> (まだ書いてないです。そのうち書きます) </span>
+</p>
+-->
+
 
 
 <p> <a href="../index.html"> 戻る </a> </p>
