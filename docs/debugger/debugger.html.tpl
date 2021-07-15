@@ -431,11 +431,13 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 
 <p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb の print コマンドのようなものを実行するのに必要な情報として機能していることを確認してほしい。 </p>
 
-<p> このテーブルは、<em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> データとなっている。 </p>
+<p>
+  このテーブルは、<em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> データとなっている。
+</p>
 
-<p> これが、デバッグ情報が持つ重要な機能のうちのひとつだ。 </p>
-
-<p> 実際のデバッグ情報が、このテーブルと同じような情報を持っていることを確認してみよう。</p>
+<p>
+  実際のデバッグ情報も、同じように、シンボルをキーにして、そのシンボルと関連する情報を取得できる構造になっている、つまり、このdebuginfo_for_debugee1と同じような構造になっているわけだ。
+</p>
 
 <p>
   さきほどと同じように、readelf -w でデバッグ情報を見ていく。readelf -w は、デバッグ情報と関連するセクションを全て表示するが、表示するセクションを選ぶこともできる。
@@ -492,14 +494,14 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 /* debugee1.c のデバッグ情報 */
 const struct VarDebugInfo debuginfo_for_debugee1[] = {
     {"int_value", TYPE_INT, 0x404000},
-    {"str_value", TYPE_CHAR_PTR, 0x404008},
+    {"str_value", TYPE_CHAR_ARRAY, 0x404008},
     {NULL}                              /* 終端 */
 };
 </pre>
 
 <p>
   このテーブルとかなり似たデータが含まれている。つまり、この.debug_info セクションを適切に読むことができれば、
-  上で見たdebuggee1.c のプログラムと同じように <em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> できるわけだ。
+  上で見たdebuggee1.c のプログラムと同じように <em> シンボル名をキーにして、そのシンボルと関連する情報を取得 </em> できるわけだ。
 </p>
 
 <p>
@@ -515,6 +517,30 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 </p>
 -->
 
+<h4> アドレスからシンボル情報への変換 </h4>
+
+<p>
+  ここまでで、デバッグ情報を使えば、シンボルからそのアドレスや型情報などが取得できることを説明した。
+  それとは別に、デバッグ情報を使えば、<em>アドレスからそのアドレスに関する情報を取得する</em> こともできる。
+</p>
+
+{{ start_file('debuggee1.c') }}
+{{ gdb('b _start','run','print &str_value', ('print (char*)0x404008',None,'# 0x404008 = str_value だと表示される')) }}
+{{ end_file('debuggee1.c') }}
+
+<p> 0x404008 のアドレスにある値を表示しようとすると、そこは &lt;str_value&gt; だと表示されている点を確認してほしい。 </p>
+
+<p> デバッグ情報には、シンボルとアドレスの対応が含まれているので、これはデバッグ情報の読みかたを変えるだけで実現できる。 </p>
+
+{{ start_file('dummy-debuginfo2.c') }}
+{{ gcc('') }}
+{{ run_cmd(["./dummy-debuginfo2","0x404000"], expected="sym: int_value, type:int, addr=0x0000000000404000
+") }}
+{{ run_cmd(["./dummy-debuginfo2","0x404008"], expected="sym: str_value, type:char[], addr=0x0000000000404008
+") }}
+{{ end_file('dummy-debuginfo2.c') }}
+
+<p> シンボルとアドレスの対応を含む情報があれば、アドレスの数値から、シンボルに関する情報を取得できることを確認しよう。 </p>
 
 
 <p> <a href="../index.html"> 戻る </a> </p>

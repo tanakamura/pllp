@@ -17,6 +17,11 @@ span.gdb-command {
     color : red;
 }
 
+span.gdb-command-comment {
+    font-weight: bold;
+    color : blue;
+}
+
 
 
 .pygments pre { line-height: 125%; background-color: #dddddd; }

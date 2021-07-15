@@ -406,16 +406,16 @@ Reading symbols from ./print-a...
 Starting program: /home/tanakmura/src/pllp/docs/debugger/print-a 
 
 Temporary breakpoint 1, main () at print-a.c:6
-6	  printf("int_value = %d\n", int_value);
+6	  printf(&quot;int_value = %d\n&quot;, int_value);
 (gdb) <span class="gdb-command">print int_value
 </span>$1 = 99
 (gdb) <span class="gdb-command">print str_value
-</span>$2 = "Hello World"
+</span>$2 = &quot;Hello World&quot;
 (gdb) <span class="gdb-command">set int_value=123456
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 int_value = 123456
-[Inferior 1 (process 431161) exited normally]
+[Inferior 1 (process 535508) exited normally]
 </pre>
 
 
@@ -825,11 +825,13 @@ str_value:@ello World, var_addr=404008
 
 <p> の二点を確認し、debuginfo_for_debugee1というテーブルが、gdb の print コマンドのようなものを実行するのに必要な情報として機能していることを確認してほしい。 </p>
 
-<p> このテーブルは、<em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> データとなっている。 </p>
+<p>
+  このテーブルは、<em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> データとなっている。
+</p>
 
-<p> これが、デバッグ情報が持つ重要な機能のうちのひとつだ。 </p>
-
-<p> 実際のデバッグ情報が、このテーブルと同じような情報を持っていることを確認してみよう。</p>
+<p>
+  実際のデバッグ情報も、同じように、シンボルをキーにして、そのシンボルと関連する情報を取得できる構造になっている、つまり、このdebuginfo_for_debugee1と同じような構造になっているわけだ。
+</p>
 
 <p>
   さきほどと同じように、readelf -w でデバッグ情報を見ていく。readelf -w は、デバッグ情報と関連するセクションを全て表示するが、表示するセクションを選ぶこともできる。
@@ -954,14 +956,14 @@ str_value:@ello World, var_addr=404008
 /* debugee1.c のデバッグ情報 */
 const struct VarDebugInfo debuginfo_for_debugee1[] = {
     {"int_value", TYPE_INT, 0x404000},
-    {"str_value", TYPE_CHAR_PTR, 0x404008},
+    {"str_value", TYPE_CHAR_ARRAY, 0x404008},
     {NULL}                              /* 終端 */
 };
 </pre>
 
 <p>
   このテーブルとかなり似たデータが含まれている。つまり、この.debug_info セクションを適切に読むことができれば、
-  上で見たdebuggee1.c のプログラムと同じように <em> シンボル名をキーにして、そのシンボルと関連する情報を取得できる </em> できるわけだ。
+  上で見たdebuggee1.c のプログラムと同じように <em> シンボル名をキーにして、そのシンボルと関連する情報を取得 </em> できるわけだ。
 </p>
 
 <p>
@@ -976,6 +978,33 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
   このプログラムは、ELFファイルを操作する処理が含まれている。ELFファイルを操作するために知っておく構造については、リンカの章で説明しているので、そちらも参照してほしい。<span class="kokomade"> (まだ書いてないです。そのうち書きます) </span>
 </p>
 -->
+
+<h4> アドレスからシンボル情報への変換 </h4>
+
+<p>
+  ここまでで、デバッグ情報を使えば、シンボルからそのアドレスや型情報などが取得できることを説明した。
+  その逆に、デバッグ情報を使えば、<em>アドレスからそのアドレスに関する情報を取得する</em> こともできる。
+</p>
+
+
+<pre>
+ $ gdb --args ./debuggee1
+Reading symbols from ./debuggee1...
+
+(gdb) <span class="gdb-command">b _start
+</span>Breakpoint 1 at 0x401004: file debuggee1.c, line 5.
+(gdb) <span class="gdb-command">run
+</span>Starting program: /home/tanakmura/src/pllp/docs/debugger/debuggee1 
+
+Breakpoint 1, _start () at debuggee1.c:5
+5	  int_value = 9999;
+(gdb) <span class="gdb-command">print int_value
+</span>$1 = 1234
+(gdb) <span class="gdb-command">print &amp;str_value
+</span>$2 = (char (*)[12]) 0x404008 &lt;str_value&gt;
+(gdb) <span class="gdb-command">print (char*)0x40400a
+</span>$3 = 0x40400a &lt;str_value+2&gt; &quot;llo World&quot;<span class="gdb-command-comment"><span class="gdb-command-comment"> # 0x40400a = str_value + 2の位置だと表示される </span></span>
+</pre>
 
 
 

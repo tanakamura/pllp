@@ -120,6 +120,9 @@ def update_document(path):
         return result
 
     def gdb(*commands):
+        def gdb_log_to_html(seq):
+            return html.escape(seq.encode('utf-8').decode('unicode_escape'))
+
         gdb_args = ["gdb", "--nx", "--quiet", "--interpreter=mi3", "--args", "./%s"%(exe_name(cur_session.path))]
         gdb = GdbController(command=gdb_args)
 
@@ -130,20 +133,45 @@ def update_document(path):
         response = gdb.write("")
         for r in response:
             if r['type'] == 'stream' or r['type'] == 'console' or r['type'] == 'log':
-                result += (r['payload'].encode('utf-8').decode('unicode_escape'))
+                result += gdb_log_to_html(r['payload'])
 
         for c in commands:
+            command_comment = None
+            result_comment = None
+
+            if isinstance(c,tuple):
+                c,command_comment,result_comment = c
+                if command_comment:
+                    command_comment = '<span class="gdb-command-comment"> %s </span>' % command_comment
+                if result_comment:
+                    result_comment = '<span class="gdb-command-comment"> %s </span>' % result_comment
+
             result += ("(gdb) ")
             response = gdb.write(c)
             for r in response:
                 if r['type'] == 'log':
                     result += ('<span class="gdb-command">')
-                    result += (r['payload'].encode('utf-8').decode('unicode_escape'))
-                    result += ("</span>")
-                elif r['type'] == 'stream' or r['type'] == 'console' or r['type'] == 'log':
-                    result += (r['payload'].encode('utf-8').decode('unicode_escape'))
+                    if command_comment:
+                        result += gdb_log_to_html(r['payload'].rstrip('\n'))
+                        result += ("</span>")
+
+                        result += '<span class="gdb-command-comment">%s</span>\n'%command_comment
+                    else:
+                        result += gdb_log_to_html(r['payload'])
+                        result += ("</span>")
+
+                elif r['type'] == 'stream':
+                    result += gdb_log_to_html(r['payload'])
+                elif r['type'] == 'console':
+                    if result_comment:
+                        result += gdb_log_to_html(r['payload']).rstrip('\n')
+                        result += '<span class="gdb-command-comment">%s</span>\n'%result_comment
+                        result_comment = None
+                    else:
+                        result += gdb_log_to_html(r['payload'])
+
                 elif r['type'] == 'output':
-                    result += (r['payload'].encode('utf-8').decode('unicode_escape')) + "\n"
+                    result += gdb_log_to_html(r['payload']) + "\n"
 
 
         result += ("</pre>\n")
