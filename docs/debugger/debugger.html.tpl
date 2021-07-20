@@ -3,16 +3,21 @@
   <meta charset="utf-8"/>
   <title> デバッガ </title>
   <link rel="stylesheet" type="text/css" href="../style.css">
+  <script type="text/javascript" src="../js.js"></script>
 </head>
 
-<body>
+<body onload="assign_section()">
 
-<!-- TOC -->
-<!-- end TOC -->
+<div id="global">
 
 <p> <a href="../index.html"> 戻る </a> </p>
 
-<h1> <a href="debugger.html"> デバッガ </a> </h1>
+
+<div id="toc">
+<p> 目次 </p>
+</div>
+
+<h1> デバッガ </h1>
 
 <p>
   これまで何度も使ってきたgdb、つまりデバッガだが、これがどのように動いているかを見ていこう。
@@ -540,10 +545,212 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 ") }}
 {{ end_file('dummy-debuginfo2.c') }}
 
-<p> シンボルとアドレスの対応を含む情報があれば、アドレスの数値から、シンボルに関する情報を取得できることを確認しよう。 </p>
+<p>
+  シンボルとアドレスの対応を含む情報があれば、アドレスの数値から、シンボルに関する情報を取得できることを確認しよう。
+</p>
+
+
+<h4> アドレスからソース位置への変換 </h4>
+
+<p> デバッグ時には、 <em>プログラムカウンタの値からファイル名・行番号を取得</em>できていることに注目してほしい。</p>
+
+
+{{ start_file('debuggee2.c') }}
+{{ include_source() }}
+{{ gcc('-no-pie -g -nostartfiles -nostdlib') }}
+{{ gdb('run','disassemble') }}
+{{ end_file('debuggee2.c') }}
+
+
+<pre>
+Program received signal SIGSEGV, Segmentation fault.
+_start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 ということがわかる </em>
+5	    *(int*)0 = 0;                       /* アドレス0にアクセス、エラーを起こして停止させる */
+</pre>
+
+<p> エラーが発生している箇所とソースコードの対応がとれていることを確認しよう。 </p>
+
+<p> (アドレス0にアクセスすると、エラーが発生し、止まる理由と、そのときのプログラムカウンタが取得できる理由については、OSのところで解説する <span class="kokomade">注意:まだ書いてない</span>。ここでは、アドレス0にアクセスすると停止して、そのときのプログラムカウンタの位置がわかることだけ見ておいてほしい) </p>
+
+<p>
+  これは、さきほどと同じように、アドレスと関連する情報を結び付けて保存してあるデバッグ情報を応用すれば実現できる。
+  さきほどの例では、変数のアドレスと、そのシンボル名、型情報が関連付けられて保存されていた。
+  この場合は、<em>機械語アドレスとソースコードの位置の対応</em>が保存されている。
+</p>
+
+<p>
+  ここで、全ての機械語の命令ごとに、ファイル名と行番号の全てを保存すると、膨大な量になってしまう点に注意しよう。
+  機械語は一命令数バイトだが、ファイル名は、文字数分のバイト数が必要で、直接保存すると、命令バイト数の数十倍のサイズになってしまう。
+  これを回避するため、ソースコード位置の情報は、実際のデバッグ情報では、直前の機械語との差分のみを保存する専用のフォーマットになっている。
+</p>
+
+<p> この、ソースコード位置に関連するデバッグ情報を表示するには、readelf -wl を使う。 </p>
+
+{{ run_cmd(["readelf", "-wl", "debuggee2"]) }}
+
+<p> 差分が保存されているので、人間には読みにくい表示になっているが、次の行を見てほしい。 </p>
+
+
+<pre>
+  [0x00000043]  Special opcode 6: advance Address by 0 to 0x401000 and Line by 1 to 2
+</pre>
+
+<p> これは、「前回のアドレスから、0byte進めた 0x401000 と、前回の行番号から1行進めた 2行目の位置が対応している」という情報だ。前回との差分は、今は見なくてよいので、ここでは、</p>
+
+<pre>
+  [0x00000043]  Special opcode 6: advance Address by 0 to <em>0x401000</em> and Line by 1 to <em>2</em>
+</pre>
+
+<p>
+  この部分だけを見よう。0x401000 と 行番号2 が対応付けられているのが確認できるはずだ。同様に続きも見ていくと
+</p>
+
+<pre>
+  [0x00000043]  Special opcode 6: advance Address by 0 to 0x401000 and Line by 1 to 2      # 0x401000 からは 2行目と対応
+  [0x00000046]  Special opcode 62: advance Address by 4 to 0x401004 and Line by 1 to 3     # 0x401004 からは 3行目と対応
+  [0x00000049]  Special opcode 217: advance Address by 15 to 0x401013 and Line by 2 to 5   # 0x401013 からは 5行目と対応
+  [0x0000004c]  Special opcode 75: advance Address by 5 to 0x401018 and Line by 0 to 5     # 0x401018 からは 5行目と対応
+  [0x0000004f]  Special opcode 91: advance Address by 6 to 0x40101e and Line by 2 to 7     # 0x40101e からは 7行目と対応
+  [0x00000052]  Special opcode 76: advance Address by 5 to 0x401023 and Line by 1 to 8     # 0x401023 からは 8行目と対応
+</pre>
+
+<p>と、読みとれる(gccはカラム位置も含めて保存しているので、5行目が二回出てくる。とりあえず気にしないで読み進めてほしい)。さきほどのdisassembleやソースコードの表示とあわせると</p>
+
+<table>
+<tr>
+<td>
+<pre>
+   0x0000000000401000 &lt;+0&gt;:	push   %rbp
+   0x0000000000401001 &lt;+1&gt;:	mov    %rsp,%rbp
+</pre>
+</td>
+<td>
+ 0x401000 からは 2行目と対応
+</td>
+<td>
+<pre class="pygments">
+<span class="kt">int</span> <span class="nf">_start</span><span class="p">()</span> <span class="p">{</span>
+</pre>
+</td>
+</tr>
+
+<tr>
+<td>
+<pre>
+   0x0000000000401004 &lt;+4&gt;:	mov    0x2ff6(%rip),%eax        # 0x404000 &lt;a&gt;
+   0x000000000040100a &lt;+10&gt;:	add    $0x1,%eax
+   0x000000000040100d &lt;+13&gt;:	mov    %eax,0x2fed(%rip)        # 0x404000 &lt;a&gt;
+</pre>
+</td>
+<td>
+0x401004 からは 3行目と対応
+</td>
+
+<td>
+<pre class="pygments">
+    <span class="n">a</span><span class="o">++</span><span class="p">;</span>
+</pre>
+</td>
+
+</tr>
+
+<tr>
+<td>
+<pre>
+   0x0000000000401013 &lt;+19&gt;:	mov    $0x0,%eax
+</pre>
+</td>
+
+<td>
+0x401013 からは 5行目と対応
+</td>
+
+<td>
+<pre class="pygments">
+    <span class="o">*</span><span class="p">(</span><span class="kt">int</span><span class="o">*</span><span class="p">)</span><span class="mi">0</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>                       <span class="cm">/* アドレス0にアクセス、エラーを起こして停止させる */</span></pre>
+</td>
+
+</tr>
+
+<tr>
+<td>
+<pre>
+=&gt; 0x0000000000401018 &lt;+24&gt;:	movl   $0x0,(%rax)
+</td>
+
+<td>
+0x401018 からは 5行目と対応
+</td>
+
+<td>
+<pre class="pygments">
+    <span class="o">*</span><span class="p">(</span><span class="kt">int</span><span class="o">*</span><span class="p">)</span><span class="mi">0</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>                       <span class="cm">/* アドレス0にアクセス、エラーを起こして停止させる */</span></pre>
+</td>
+
+</tr>
+
+<tr>
+<td>
+<pre>
+   0x000000000040101e &lt;+30&gt;:	mov    $0xa,%eax
+</pre>
+</td>
+<td>
+0x40101e からは 7行目と対応
+</td>
+
+<td>
+<pre class="pygments">
+    <span class="k">return</span> <span class="mi">10</span><span class="p">;</span></pre>
+</td>
+
+<tr>
+<td>
+<pre>
+   0x0000000000401023 &lt;+35&gt;:	pop    %rbp
+   0x0000000000401024 &lt;+36&gt;:	ret    
+</pre>
+</td>
+<td>
+0x401023 からは 8行目と対応
+</td>
+<td>
+<pre class="pygments">
+<span class="p">}</span></pre>
+</td>
+</tr>
+</table>
+
+<p> 機械語のアドレス、デバッグ情報に保存された位置情報、ソースコードが、正しく対応していることを確認しよう。</p>
+
+<p> (C言語のソースコードと機械語の対応については、C言語の章を参照してほしい <span class="kokomade">注意:まだ書いてない</span> )</p>
+
+<p> ここまで見てきたアドレスとその情報の対応は、デバッグ情報の基本となる部分だ。次からは少し話がややこしくなるが、基本的な部分は変わらないので、「どうやってアドレスと情報を関連付けるか」という点を意識して読んでいってほしい。</p>
+
+
+<h4> ローカル変数 </h4>
+
+<p> ここまでの説明では、グローバルなアドレスとその情報の対応を見てきた。 </p>
+
+<p>
+  続いて、ローカル変数について考えよう。ローカル変数がグローバル変数と違う点は、変数のアドレスが実行時までわからない点だ。
+  さらに、ローカル変数は、レジスタに割り当てられることがあり、そもそもアドレスが存在しないこともある。
+</p>
+
+<p>
+  ここまで見てきたデバッグ情報では、リンク時に確定したアドレスだけが格納されていた。これではローカル変数のアドレスはわからない。
+  単にアドレスをデバッグ情報に格納するよりもう少し何か対応が必要だ。その対応方法について説明しよう。
+</p>
+
+<p>
+  
+</p>
 
 
 <p> <a href="../index.html"> 戻る </a> </p>
+
+
+</div>
 
 </body>
 </html>

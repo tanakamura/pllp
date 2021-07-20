@@ -28,6 +28,52 @@ def compile(path,opt):
     os.system(command)
     return command
 
+def unescape_gdb_str(s):
+    s = s.encode('utf-8')
+
+    ret = []
+    l = len(s)
+    i = 0
+    while i<l:
+        c = s[i]
+        if c == ord('\\'):
+            i = i+1
+
+            c = s[i]
+
+            if c == ord('n'):
+                i = i+1
+                ret.append(ord('\n'))
+            elif c == ord('t'):
+                i = i+1
+                ret.append(ord('\t'))
+            elif c == ord('"'):
+                i = i+1
+                ret.append(ord('"'))
+            elif c == ord('\\'):
+                i = i+1
+                ret.append(ord('\\'))
+            elif chr(c).isdigit():
+                val = 0
+                octallen = 0
+                while chr(c).isdigit() and octallen<3:
+                    val = val*8 + (c-ord('0'))
+
+                    i += 1
+                    if i >= l:
+                        break
+                    c = s[i]
+                    octallen += 1
+                ret.append(val)
+            else:
+                raise Exception("invalid escape sequence %s"%(chr(c)))
+        else:
+            i = i+1
+            ret.append(c)
+
+    return bytearray(ret).decode('utf-8')
+
+
 class SourceSession:
     def __init__(self,path):
         self.path = path
@@ -121,7 +167,7 @@ def update_document(path):
 
     def gdb(*commands):
         def gdb_log_to_html(seq):
-            return html.escape(seq.encode('utf-8').decode('unicode_escape'))
+            return html.escape(unescape_gdb_str(seq))
 
         gdb_args = ["gdb", "--nx", "--quiet", "--interpreter=mi3", "--args", "./%s"%(exe_name(cur_session.path))]
         gdb = GdbController(command=gdb_args)

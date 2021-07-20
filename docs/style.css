@@ -22,6 +22,12 @@ span.gdb-command-comment {
     color : blue;
 }
 
+div #toc {
+    border: solid 1px;
+    display: table;
+    line-height: 0;
+}
+
 
 
 .pygments pre { line-height: 125%; background-color: #dddddd; }
