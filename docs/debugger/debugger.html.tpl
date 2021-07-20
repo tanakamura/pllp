@@ -746,6 +746,11 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
   
 </p>
 
+<h4> backtrace </h4>
+
+
+<h3> breakpoint,next,finish </h3>
+<h3> watch </h3>
 
 <p> <a href="../index.html"> 戻る </a> </p>
 
