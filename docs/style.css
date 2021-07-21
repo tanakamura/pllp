@@ -10,6 +10,8 @@ table,td,th { border: solid 1px; }
 
 div.imgbox {
     max-width: 800pt;
+    border: solid 1px;
+    padding: 10pt;
 }
 
 span.gdb-command {

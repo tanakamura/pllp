@@ -509,6 +509,11 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
   上で見たdebuggee1.c のプログラムと同じように <em> シンボル名をキーにして、そのシンボルと関連する情報を取得 </em> できるわけだ。
 </p>
 
+<div class="imgbox">
+  <img src="sym_to_info.svg" width="100%">
+</div>
+
+
 <p>
   この.debug_infoに含まれる情報は、<em>DWARF (debugging with attributed record formats)</em>という仕様に従って、格納されている。
   DWARFの構造は、少し複雑なので、ひととおりデバッグ情報について説明したあとで解説しよう。
@@ -549,6 +554,11 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
   シンボルとアドレスの対応を含む情報があれば、アドレスの数値から、シンボルに関する情報を取得できることを確認しよう。
 </p>
 
+<div class="imgbox">
+  <img src="addr_to_info.svg" width="100%">
+</div>
+
+
 
 <h4> アドレスからソース位置への変換 </h4>
 
@@ -578,9 +588,13 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
   この場合は、<em>機械語アドレスとソースコードの位置の対応</em>が保存されている。
 </p>
 
+<div class="imgbox">
+  <img src="addr_to_loc.svg" width="100%">
+</div>
+
 <p>
   ここで、全ての機械語の命令ごとに、ファイル名と行番号の全てを保存すると、膨大な量になってしまう点に注意しよう。
-  機械語は一命令数バイトだが、ファイル名は、文字数分のバイト数が必要で、直接保存すると、命令バイト数の数十倍のサイズになってしまう。
+  機械語は一命令数バイトだが、ファイル名は、文字数分のバイト数が必要で、直接保存すると、命令サイズに対して、デバッグ情報のサイズが数十倍になってしまう可能性がある。
   これを回避するため、ソースコード位置の情報は、実際のデバッグ情報では、直前の機械語との差分のみを保存する専用のフォーマットになっている。
 </p>
 
@@ -928,8 +942,71 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
 
 <p> readelf -wi -wo の出力から、ローカル変数の表示が実現できることを確認しよう。</p>
 
-<p> </p>
+<div class="imgbox">
+  <img src="addr_to_localvar.svg" width="100%">
+</div>
 
+
+<p> レジスタではなく、スタック上に確保された変数も見ておこう。 </p>
+
+{{ start_file('debuggee4.c') }}
+{{ include_source() }}
+{{ gcc('-fno-stack-protector -no-pie -O2 -g -nostartfiles -nostdlib -fno-asynchronous-unwind-tables') }}
+{{ run_cmd(["readelf", "-wi", "-wo", "debuggee4"]) }}
+
+<pre>
+ &lt;2&gt;&lt;af&gt;: 省略番号: 8 (DW_TAG_variable)
+    &lt;b0&gt;   DW_AT_name        : x0
+    &lt;b3&gt;   DW_AT_decl_file   : 1
+    &lt;b4&gt;   DW_AT_decl_line   : 13
+    &lt;b5&gt;   DW_AT_decl_column : 7
+    &lt;b6&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;ba&gt;   DW_AT_location    : 2 byte block: 91 6c 	(DW_OP_fbreg: -20)
+</pre>
+
+<p> この場合、x0 のDW_AT_locationは、 (DW_OP_fbreg: -20) となっている。これは、「この関数のフレームの開始位置から-20byteの所に格納されている」という意味だ。</p>
+
+{{ gcc_S('-fno-stack-protector -no-pie -O2 -S -nostartfiles -nostdlib -fno-asynchronous-unwind-tables') }}
+{{ include_file('debuggee4.s', [('	subq	$24, %rsp','/* フレームサイズ24byte */'), ('	movl	$1, 12(%rsp)','/* x0 = 1 */')]) }}
+{{ end_file('debuggee4.c') }}
+
+<p>
+  出力されたアセンブリを見ると、まず、rsp を 24byte 減らして、スタックフレームを確保し、rsp + 12 の位置にx0 を確保していることがわかる。
+  これは、関数の開始時点から見ると、rsp-12 の位置にx0を確保していることになる。
+  DWARFでは、スタックフレームは、関数の戻りアドレスを含めるので、スタックフレームの開始位置は、関数開始時点のrspの位置から、+8した位置になる。
+</p>
+
+<div class="imgbox">
+  <img src="jtagdebug.svg" width="100%">
+</div>
+
+<p> フレーム開始位置から、-20byteの位置にx0が確保されていることを確認してほしい。 </p>
+
+<p> このように、スタックに確保されたローカル変数は、デバッグ情報の中にフレームからの距離が格納されている。 </p>
+
+<p> gdb の print は、</p>
+
+<ol>
+  <li> .debug_info から x0 の情報を取得する。x0 は今のフレームの-20byteにあることがわかる </li>
+  <li> フレーム開始位置から-20byteの位置から値を取得して表示 </li>
+</ol>
+
+<p> と、なる。 </p>
+
+<p> さて、ここで注意してほしいのは、「フレーム開始位置」とは一体なんなのか？という点だ。 </p>
+
+<p> フレーム開始位置は、rsp の付近にあるということは予測できるが、rspの値は、プログラムの実行にあわせて変化するので、
+  「関数Xでは、rsp から N byte 離れた位置がフレーム開始位置になる」とは言えない。
+</p>
+
+<p>たとえば、先程のアセンブリで考えると</p>
+
+{{ include_file('debuggee4_with_comment.s') }}
+
+<p> このように、rsp とフレーム開始位置の距離は変化する。 </p>
+
+<p> フレームの開始位置を正しく表現するには、どういう情報をデバッグ情報に含めればよいだろうか。
+  これについては、次のbacktraceのところで解説しよう。 </p>
 
 <h4> backtrace </h4>
 
@@ -939,19 +1016,9 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
 
 <h1> デバッガの実装 </h1>
 
-<p> ほんとにやるの？ </p>
+<p> さらに完全に理解したい人のために、デバッガを実装してみよう。(ほんとにやるの？) </p>
 
 <h2> DWARFの読みかた </h2>
-
-<p> さらに完全に理解したい人のために、DWARFの読みかたを解説しておこう。</p>
-
-<p> DWARFはファイルサイズ削減のために、簡単に読めるフォーマットにはなっていない。
-  純粋に動作を知りたいだけの場合は、無駄な苦痛が待っているので特に興味のない人は読み飛ばしてもらって構わない。
-</p>
-
-<p>
-  それでも、細かい動作まで理解して、デバッガとデバッグ情報が魔法ではないと確信を持ちたい人は、これを参考に自分でデバッガの実装などにチャレンジしてみてほしい。
-</p>
 
 <p> <a href="../index.html"> 戻る </a> </p>
 

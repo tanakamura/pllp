@@ -420,7 +420,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 int_value = 123456
-[Inferior 1 (process 162263) exited normally]
+[Inferior 1 (process 170004) exited normally]
 </pre>
 
 
@@ -971,6 +971,11 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
   上で見たdebuggee1.c のプログラムと同じように <em> シンボル名をキーにして、そのシンボルと関連する情報を取得 </em> できるわけだ。
 </p>
 
+<div class="imgbox">
+  <img src="sym_to_info.svg" width="100%">
+</div>
+
+
 <p>
   この.debug_infoに含まれる情報は、<em>DWARF (debugging with attributed record formats)</em>という仕様に従って、格納されている。
   DWARFの構造は、少し複雑なので、ひととおりデバッグ情報について説明したあとで解説しよう。
@@ -1038,6 +1043,11 @@ sym: str_value, type:char[], addr=0x0000000000404008
   シンボルとアドレスの対応を含む情報があれば、アドレスの数値から、シンボルに関する情報を取得できることを確認しよう。
 </p>
 
+<div class="imgbox">
+  <img src="addr_to_info.svg" width="100%">
+</div>
+
+
 
 <h4> アドレスからソース位置への変換 </h4>
 
@@ -1104,9 +1114,13 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
   この場合は、<em>機械語アドレスとソースコードの位置の対応</em>が保存されている。
 </p>
 
+<div class="imgbox">
+  <img src="addr_to_loc.svg" width="100%">
+</div>
+
 <p>
   ここで、全ての機械語の命令ごとに、ファイル名と行番号の全てを保存すると、膨大な量になってしまう点に注意しよう。
-  機械語は一命令数バイトだが、ファイル名は、文字数分のバイト数が必要で、直接保存すると、命令バイト数の数十倍のサイズになってしまう。
+  機械語は一命令数バイトだが、ファイル名は、文字数分のバイト数が必要で、直接保存すると、命令サイズに対して、デバッグ情報のサイズが数十倍になってしまう可能性がある。
   これを回避するため、ソースコード位置の情報は、実際のデバッグ情報では、直前の機械語との差分のみを保存する専用のフォーマットになっている。
 </p>
 
@@ -1781,8 +1795,258 @@ End of assembler dump.
 
 <p> readelf -wi -wo の出力から、ローカル変数の表示が実現できることを確認しよう。</p>
 
-<p> </p>
+<div class="imgbox">
+  <img src="addr_to_localvar.svg" width="100%">
+</div>
 
+
+<p> レジスタではなく、スタック上に確保された変数も見ておこう。 </p>
+
+
+<p><a href="debuggee4.c"> debuggee4.c </a><p>
+<div class="pygments"><pre><span></span><span class="cp">#include</span> <span class="cpf">&lt;syscall.h&gt;</span><span class="cp"></span>
+
+<span class="cm">/* 最適化で呼び出しが消えないようにGCC 11ではnoipaを付ける */</span>
+<span class="cp">#define NOINLINE __attribute__((noipa))</span>
+
+<span class="n">NOINLINE</span> <span class="k">static</span> <span class="kt">int</span> <span class="n">ret1</span><span class="p">(</span><span class="kt">int</span> <span class="o">*</span><span class="n">p</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="o">*</span><span class="n">p</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="n">NOINLINE</span> <span class="k">static</span> <span class="kt">int</span> <span class="n">f</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kt">int</span> <span class="n">x0</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+  <span class="k">return</span> <span class="n">ret1</span><span class="p">(</span><span class="o">&amp;</span><span class="n">x0</span><span class="p">);</span>
+<span class="p">}</span>
+
+<span class="kt">int</span>
+<span class="n">_start</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">ret</span> <span class="o">=</span> <span class="n">f</span><span class="p">();</span>
+    <span class="n">__asm__</span> <span class="nf">__volatile__</span><span class="p">(</span><span class="s">&quot;syscall&quot;</span><span class="o">::</span><span class="s">&quot;a&quot;</span><span class="p">(</span><span class="mi">60</span><span class="p">),</span><span class="s">&quot;D&quot;</span><span class="p">(</span><span class="n">ret</span><span class="p">));</span>
+
+<span class="p">}</span>
+</pre></div>
+
+<pre>
+ $ gcc -fno-stack-protector -no-pie -O2 -g -nostartfiles -nostdlib -fno-asynchronous-unwind-tables -o debuggee4 debuggee4.c
+</pre>
+
+<pre>
+ $ readelf -wi -wo debuggee4 
+.debug_info セクションの内容:
+
+  コンパイル単位 @ オフセット 0x0:
+   長さ:        0xee (32-bit)
+   バージョン:    5
+   Unit Type:     DW_UT_compile (1)
+   省略オフセット: 0x0
+   ポインタサイズ:8
+ &lt;0&gt;&lt;c&gt;: 省略番号: 1 (DW_TAG_compile_unit)
+    &lt;d&gt;   DW_AT_producer    : (間接文字列、オフセット: 0x0): GNU C17 11.1.0 -mtune=generic -march=x86-64 -g -O2 -fno-stack-protector -fno-asynchronous-unwind-tables
+    &lt;11&gt;   DW_AT_language    : 29	(C11)
+    &lt;12&gt;   DW_AT_name        : (間接行文字列、オフセット: 0x0): debuggee4.c
+    &lt;16&gt;   DW_AT_comp_dir    : (間接行文字列、オフセット: 0xc): /home/tanakmura/src/pllp/docs/debugger
+    &lt;1a&gt;   DW_AT_low_pc      : 0x401000
+    &lt;22&gt;   DW_AT_high_pc     : 0x47
+    &lt;2a&gt;   DW_AT_stmt_list   : 0x0
+ &lt;1&gt;&lt;2e&gt;: 省略番号: 2 (DW_TAG_subprogram)
+    &lt;2f&gt;   DW_AT_external    : 1
+    &lt;2f&gt;   DW_AT_name        : (間接文字列、オフセット: 0x6d): _start
+    &lt;33&gt;   DW_AT_decl_file   : 1
+    &lt;34&gt;   DW_AT_decl_line   : 16
+    &lt;35&gt;   DW_AT_decl_column : 1
+    &lt;36&gt;   DW_AT_type        : &lt;0x72&gt;
+    &lt;3a&gt;   DW_AT_low_pc      : 0x401030
+    &lt;42&gt;   DW_AT_high_pc     : 0x17
+    &lt;4a&gt;   DW_AT_frame_base  : 1 byte block: 9c 	(DW_OP_call_frame_cfa)
+    &lt;4c&gt;   DW_AT_call_all_calls: 1
+    &lt;4c&gt;   DW_AT_sibling     : &lt;0x72&gt;
+ &lt;2&gt;&lt;50&gt;: 省略番号: 3 (DW_TAG_variable)
+    &lt;51&gt;   DW_AT_name        : ret
+    &lt;55&gt;   DW_AT_decl_file   : 1
+    &lt;56&gt;   DW_AT_decl_line   : 18
+    &lt;57&gt;   DW_AT_decl_column : 9
+    &lt;58&gt;   DW_AT_type        : &lt;0x72&gt;
+    &lt;5c&gt;   DW_AT_location    : 0x10 (location list)
+    &lt;60&gt;   DW_AT_GNU_locviews: 0xc
+ &lt;2&gt;&lt;64&gt;: 省略番号: 4 (DW_TAG_call_site)
+    &lt;65&gt;   DW_AT_call_return_pc: 0x401039
+    &lt;6d&gt;   DW_AT_call_origin : &lt;0x79&gt;
+ &lt;2&gt;&lt;71&gt;: Abbrev Number: 0
+ &lt;1&gt;&lt;72&gt;: 省略番号: 5 (DW_TAG_base_type)
+    &lt;73&gt;   DW_AT_byte_size   : 4
+    &lt;74&gt;   DW_AT_encoding    : 5	(signed)
+    &lt;75&gt;   DW_AT_name        : int
+ &lt;1&gt;&lt;79&gt;: 省略番号: 6 (DW_TAG_subprogram)
+    &lt;7a&gt;   DW_AT_name        : f
+    &lt;7c&gt;   DW_AT_decl_file   : 1
+    &lt;7d&gt;   DW_AT_decl_line   : 10
+    &lt;7e&gt;   DW_AT_decl_column : 21
+    &lt;7f&gt;   DW_AT_prototyped  : 1
+    &lt;7f&gt;   DW_AT_type        : &lt;0x72&gt;
+    &lt;83&gt;   DW_AT_low_pc      : 0x401010
+    &lt;8b&gt;   DW_AT_high_pc     : 0x1b
+    &lt;93&gt;   DW_AT_frame_base  : 1 byte block: 9c 	(DW_OP_call_frame_cfa)
+    &lt;95&gt;   DW_AT_call_all_calls: 1
+    &lt;95&gt;   DW_AT_sibling     : &lt;0xbc&gt;
+ &lt;2&gt;&lt;99&gt;: 省略番号: 7 (DW_TAG_variable)
+    &lt;9a&gt;   DW_AT_name        : x0
+    &lt;9d&gt;   DW_AT_decl_file   : 1
+    &lt;9e&gt;   DW_AT_decl_line   : 11
+    &lt;9f&gt;   DW_AT_decl_column : 7
+    &lt;a0&gt;   DW_AT_type        : &lt;0x72&gt;
+    &lt;a4&gt;   DW_AT_location    : 2 byte block: 91 6c 	(DW_OP_fbreg: -20)
+ &lt;2&gt;&lt;a7&gt;: 省略番号: 8 (DW_TAG_call_site)
+    &lt;a8&gt;   DW_AT_call_return_pc: 0x401026
+    &lt;b0&gt;   DW_AT_call_origin : &lt;0xbc&gt;
+ &lt;3&gt;&lt;b4&gt;: 省略番号: 9 (DW_TAG_call_site_parameter)
+    &lt;b5&gt;   DW_AT_location    : 1 byte block: 55 	(DW_OP_reg5 (rdi))
+    &lt;b7&gt;   DW_AT_call_value  : 2 byte block: 91 6c 	(DW_OP_fbreg: -20)
+ &lt;3&gt;&lt;ba&gt;: Abbrev Number: 0
+ &lt;2&gt;&lt;bb&gt;: Abbrev Number: 0
+ &lt;1&gt;&lt;bc&gt;: 省略番号: 10 (DW_TAG_subprogram)
+    &lt;bd&gt;   DW_AT_name        : (間接文字列、オフセット: 0x68): ret1
+    &lt;c1&gt;   DW_AT_decl_file   : 1
+    &lt;c2&gt;   DW_AT_decl_line   : 6
+    &lt;c3&gt;   DW_AT_decl_column : 21
+    &lt;c4&gt;   DW_AT_prototyped  : 1
+    &lt;c4&gt;   DW_AT_type        : &lt;0x72&gt;
+    &lt;c8&gt;   DW_AT_low_pc      : 0x401000
+    &lt;d0&gt;   DW_AT_high_pc     : 0x3
+    &lt;d8&gt;   DW_AT_frame_base  : 1 byte block: 9c 	(DW_OP_call_frame_cfa)
+    &lt;da&gt;   DW_AT_call_all_calls: 1
+    &lt;da&gt;   DW_AT_sibling     : &lt;0xeb&gt;
+ &lt;2&gt;&lt;de&gt;: 省略番号: 11 (DW_TAG_formal_parameter)
+    &lt;df&gt;   DW_AT_name        : p
+    &lt;e1&gt;   DW_AT_decl_file   : 1
+    &lt;e2&gt;   DW_AT_decl_line   : 6
+    &lt;e3&gt;   DW_AT_decl_column : 31
+    &lt;e4&gt;   DW_AT_type        : &lt;0xeb&gt;
+    &lt;e8&gt;   DW_AT_location    : 1 byte block: 55 	(DW_OP_reg5 (rdi))
+ &lt;2&gt;&lt;ea&gt;: Abbrev Number: 0
+ &lt;1&gt;&lt;eb&gt;: 省略番号: 12 (DW_TAG_pointer_type)
+    &lt;ec&gt;   DW_AT_byte_size   : 8
+    &lt;ed&gt;   DW_AT_type        : &lt;0x72&gt;
+ &lt;1&gt;&lt;f1&gt;: Abbrev Number: 0
+
+.debug_loclists セクションの内容:
+
+    Offset   Begin            End              Expression
+
+    0000000c v000000000000000 v000000000000000 location view pair
+    0000000e v000000000000000 v000000000000000 location view pair
+
+    00000010 v000000000000000 v000000000000000 views at 0000000c for:
+             000000000040103b 0000000000401040 (DW_OP_reg0 (rax))
+    00000015 v000000000000000 v000000000000000 views at 0000000e for:
+             0000000000401040 0000000000401047 (DW_OP_reg5 (rdi))
+    0000001a &lt;リストの終端&gt;
+
+
+</pre>
+
+
+<pre>
+ &lt;2&gt;&lt;af&gt;: 省略番号: 8 (DW_TAG_variable)
+    &lt;b0&gt;   DW_AT_name        : x0
+    &lt;b3&gt;   DW_AT_decl_file   : 1
+    &lt;b4&gt;   DW_AT_decl_line   : 13
+    &lt;b5&gt;   DW_AT_decl_column : 7
+    &lt;b6&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;ba&gt;   DW_AT_location    : 2 byte block: 91 6c 	(DW_OP_fbreg: -20)
+</pre>
+
+<p> この場合、x0 のDW_AT_locationは、 (DW_OP_fbreg: -20) となっている。これは、「この関数のフレームの開始位置から-20byteの所に格納されている」という意味だ。</p>
+
+<pre>
+ $ gcc -fno-stack-protector -no-pie -O2 -S -nostartfiles -nostdlib -fno-asynchronous-unwind-tables -o debuggee4.s debuggee4.c
+</pre>
+
+<div class="pygments"><pre><span></span>	<span class="na">.file</span>	<span class="s">&quot;debuggee4.c&quot;</span>
+	<span class="na">.text</span>
+	<span class="na">.p2align</span> <span class="mi">4</span>
+	<span class="na">.type</span>	<span class="no">ret1</span><span class="p">,</span> <span class="na">@function</span>
+<span class="nl">ret1:</span>
+	<span class="nf">movl</span>	<span class="p">(</span><span class="nv">%rdi</span><span class="p">),</span> <span class="nv">%eax</span>
+	<span class="nf">ret</span>
+	<span class="na">.size</span>	<span class="no">ret1</span><span class="p">,</span> <span class="no">.-ret1</span>
+	<span class="na">.p2align</span> <span class="mi">4</span>
+	<span class="na">.type</span>	<span class="no">f</span><span class="p">,</span> <span class="na">@function</span>
+<span class="nl">f:</span>
+	<span class="nf">subq</span>	<span class="no">$24</span><span class="p">,</span> <span class="nv">%rsp</span>        <span class="cm">/* フレームサイズ24byte */</span>
+	<span class="nf">leaq</span>	<span class="mi">12</span><span class="p">(</span><span class="nv">%rsp</span><span class="p">),</span> <span class="nv">%rdi</span>
+	<span class="nf">movl</span>	<span class="no">$1</span><span class="p">,</span> <span class="mi">12</span><span class="p">(</span><span class="nv">%rsp</span><span class="p">)</span>        <span class="cm">/* x0 = 1 */</span>
+	<span class="nf">call</span>	<span class="no">ret1</span>
+	<span class="nf">addq</span>	<span class="no">$24</span><span class="p">,</span> <span class="nv">%rsp</span>
+	<span class="nf">ret</span>
+	<span class="na">.size</span>	<span class="no">f</span><span class="p">,</span> <span class="no">.-f</span>
+	<span class="na">.p2align</span> <span class="mi">4</span>
+	<span class="na">.globl</span>	<span class="no">_start</span>
+	<span class="na">.type</span>	<span class="no">_start</span><span class="p">,</span> <span class="na">@function</span>
+<span class="nl">_start:</span>
+	<span class="nf">subq</span>	<span class="no">$8</span><span class="p">,</span> <span class="nv">%rsp</span>
+	<span class="nf">call</span>	<span class="no">f</span>
+	<span class="nf">movl</span>	<span class="nv">%eax</span><span class="p">,</span> <span class="nv">%edi</span>
+	<span class="nf">movl</span>	<span class="no">$60</span><span class="p">,</span> <span class="nv">%eax</span>
+<span class="c1">#APP</span>
+<span class="c1"># 19 &quot;debuggee4.c&quot; 1</span>
+	<span class="nf">syscall</span>
+<span class="c1"># 0 &quot;&quot; 2</span>
+<span class="c1">#NO_APP</span>
+	<span class="nf">addq</span>	<span class="no">$8</span><span class="p">,</span> <span class="nv">%rsp</span>
+	<span class="nf">ret</span>
+	<span class="na">.size</span>	<span class="no">_start</span><span class="p">,</span> <span class="no">.-_start</span>
+	<span class="na">.ident</span>	<span class="s">&quot;GCC: (GNU) 11.1.0&quot;</span>
+	<span class="na">.section</span>	<span class="no">.note.GNU-stack</span><span class="p">,</span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="na">@progbits</span>
+</pre></div>
+
+
+
+<p>
+  出力されたアセンブリを見ると、まず、rsp を 24byte 減らして、スタックフレームを確保し、rsp + 12 の位置にx0 を確保していることがわかる。
+  これは、関数の開始時点から見ると、rsp-12 の位置にx0を確保していることになる。
+  DWARFでは、スタックフレームは、関数の戻りアドレスを含めるので、スタックフレームの開始位置は、関数開始時点のrspの位置から、+8した位置になる。
+</p>
+
+<div class="imgbox">
+  <img src="jtagdebug.svg" width="100%">
+</div>
+
+<p> フレーム開始位置から、-20byteの位置にx0が確保されていることを確認してほしい。 </p>
+
+<p> このように、スタックに確保されたローカル変数は、デバッグ情報の中にフレームからの距離が格納されている。 </p>
+
+<p> gdb の print は、</p>
+
+<ol>
+  <li> .debug_info から x0 の情報を取得する。x0 は今のフレームの-20byteにあることがわかる </li>
+  <li> フレーム開始位置から-20byteの位置から値を取得して表示 </li>
+</ol>
+
+<p> と、なる。 </p>
+
+<p> さて、ここで注意してほしいのは、「フレーム開始位置」とは一体なんなのか？という点だ。 </p>
+
+<p> フレーム開始位置は、rsp の付近にあるということは予測できるが、rspの値は、プログラムの実行にあわせて変化するので、
+  「関数Xでは、rsp から N byte 離れた位置がフレーム開始位置になる」とは言えない。
+</p>
+
+<p>たとえば、先程のアセンブリで考えると</p>
+
+<div class="pygments"><pre><span></span><span class="nl">f:</span>                                    <span class="c1"># fの開始時点では rsp+8 がフレーム開始位置</span>
+	<span class="nf">subq</span>	<span class="no">$24</span><span class="p">,</span> <span class="nv">%rsp</span>             <span class="c1"># この命令の実行後は rsp+32 がフレーム開始位置</span>
+	<span class="nf">leaq</span>	<span class="mi">12</span><span class="p">(</span><span class="nv">%rsp</span><span class="p">),</span> <span class="nv">%rdi</span>
+	<span class="nf">movl</span>	<span class="no">$1</span><span class="p">,</span> <span class="mi">12</span><span class="p">(</span><span class="nv">%rsp</span><span class="p">)</span>
+	<span class="nf">call</span>	<span class="no">ret1</span>		      <span class="c1"># call 命令はrspを8減らすのでcallで飛んだ先ではrsp+40がフレーム開始位置、戻ってくるとrsp+32がフレーム開始位置</span>
+	<span class="nf">addq</span>	<span class="no">$24</span><span class="p">,</span> <span class="nv">%rsp</span>             <span class="c1"># この命令の実行後は rsp+8 がフレーム開始位置</span>
+	<span class="nf">ret</span>
+</pre></div>
+
+
+<p> このように、rsp とフレーム開始位置の距離は変化する。 </p>
+
+<p> フレームの開始位置を正しく表現するには、どういう情報をデバッグ情報に含めればよいだろうか。
+  これについては、次のbacktraceのところで解説しよう。 </p>
 
 <h4> backtrace </h4>
 
@@ -1792,19 +2056,9 @@ End of assembler dump.
 
 <h1> デバッガの実装 </h1>
 
-<p> ほんとにやるの？ </p>
+<p> さらに完全に理解したい人のために、デバッガを実装してみよう。(ほんとにやるの？) </p>
 
 <h2> DWARFの読みかた </h2>
-
-<p> さらに完全に理解したい人のために、DWARFの読みかたを解説しておこう。</p>
-
-<p> DWARFはファイルサイズ削減のために、簡単に読めるフォーマットにはなっていない。
-  純粋に動作を知りたいだけの場合は、無駄な苦痛が待っているので特に興味のない人は読み飛ばしてもらって構わない。
-</p>
-
-<p>
-  それでも、細かい動作まで理解して、デバッガとデバッグ情報が魔法ではないと確信を持ちたい人は、これを参考に自分でデバッガの実装などにチャレンジしてみてほしい。
-</p>
 
 <p> <a href="../index.html"> 戻る </a> </p>
 
