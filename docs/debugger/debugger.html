@@ -420,7 +420,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 int_value = 123456
-[Inferior 1 (process 170004) exited normally]
+[Inferior 1 (process 170872) exited normally]
 </pre>
 
 
@@ -2009,14 +2009,14 @@ End of assembler dump.
 </p>
 
 <div class="imgbox">
-  <img src="jtagdebug.svg" width="100%">
+  <img src="debuggee4_frame.svg" width="100%">
 </div>
 
 <p> フレーム開始位置から、-20byteの位置にx0が確保されていることを確認してほしい。 </p>
 
-<p> このように、スタックに確保されたローカル変数は、デバッグ情報の中にフレームからの距離が格納されている。 </p>
+<p> スタックに確保されたローカル変数は、このようにデバッグ情報の中にフレームからの距離が格納されている。 </p>
 
-<p> gdb の print は、</p>
+<p> gdb の print はこれを使って、</p>
 
 <ol>
   <li> .debug_info から x0 の情報を取得する。x0 は今のフレームの-20byteにあることがわかる </li>
@@ -2033,12 +2033,12 @@ End of assembler dump.
 
 <p>たとえば、先程のアセンブリで考えると</p>
 
-<div class="pygments"><pre><span></span><span class="nl">f:</span>                                    <span class="c1"># fの開始時点では rsp+8 がフレーム開始位置</span>
-	<span class="nf">subq</span>	<span class="no">$24</span><span class="p">,</span> <span class="nv">%rsp</span>             <span class="c1"># この命令の実行後は rsp+32 がフレーム開始位置</span>
+<div class="pygments"><pre><span></span><span class="nl">f:</span>                                    <span class="cm">/* fの開始時点では rsp+8 がフレーム開始位置 */</span>
+	<span class="nf">subq</span>	<span class="no">$24</span><span class="p">,</span> <span class="nv">%rsp</span>             <span class="cm">/* この命令の実行後は rsp+32 がフレーム開始位置 */</span>
 	<span class="nf">leaq</span>	<span class="mi">12</span><span class="p">(</span><span class="nv">%rsp</span><span class="p">),</span> <span class="nv">%rdi</span>
 	<span class="nf">movl</span>	<span class="no">$1</span><span class="p">,</span> <span class="mi">12</span><span class="p">(</span><span class="nv">%rsp</span><span class="p">)</span>
-	<span class="nf">call</span>	<span class="no">ret1</span>		      <span class="c1"># call 命令はrspを8減らすのでcallで飛んだ先ではrsp+40がフレーム開始位置、戻ってくるとrsp+32がフレーム開始位置</span>
-	<span class="nf">addq</span>	<span class="no">$24</span><span class="p">,</span> <span class="nv">%rsp</span>             <span class="c1"># この命令の実行後は rsp+8 がフレーム開始位置</span>
+	<span class="nf">call</span>	<span class="no">ret1</span>		      <span class="cm">/* call 命令はrspを8減らすのでcallで飛んだ先ではrsp+40がフレーム開始位置、戻ってくるとrsp+32がフレーム開始位置 */</span>
+	<span class="nf">addq</span>	<span class="no">$24</span><span class="p">,</span> <span class="nv">%rsp</span>             <span class="cm">/* この命令の実行後は rsp+8 がフレーム開始位置 */</span>
 	<span class="nf">ret</span>
 </pre></div>
 

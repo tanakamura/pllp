@@ -977,14 +977,14 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
 </p>
 
 <div class="imgbox">
-  <img src="jtagdebug.svg" width="100%">
+  <img src="debuggee4_frame.svg" width="100%">
 </div>
 
 <p> フレーム開始位置から、-20byteの位置にx0が確保されていることを確認してほしい。 </p>
 
-<p> このように、スタックに確保されたローカル変数は、デバッグ情報の中にフレームからの距離が格納されている。 </p>
+<p> スタックに確保されたローカル変数は、このようにデバッグ情報の中にフレームからの距離が格納されている。 </p>
 
-<p> gdb の print は、</p>
+<p> gdb の print はこれを使って、</p>
 
 <ol>
   <li> .debug_info から x0 の情報を取得する。x0 は今のフレームの-20byteにあることがわかる </li>
