@@ -369,7 +369,7 @@ rip=00000000004011c1, main=0000000000401186, delta=3b
 </p>
 
 <p>
-  例えば、ダイマデバイスなどは、JTAG経由ではCPUを停止しても動き続けるが、ICE で状態を停止すると、タイマとCPUコアを同時に停止でき、問題が発生したときのタイマの状態を正しく観測できる。
+  例えば、タイマデバイスなどは、JTAG経由ではCPUを停止しても動き続けるが、ICE で状態を停止すると、タイマとCPUコアを同時に停止でき、問題が発生したときのタイマの状態を正しく観測できる。
 </p>
 
 <p>
@@ -420,7 +420,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 int_value = 123456
-[Inferior 1 (process 170872) exited normally]
+[Inferior 1 (process 172556) exited normally]
 </pre>
 
 
