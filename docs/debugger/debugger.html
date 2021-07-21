@@ -420,7 +420,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 int_value = 123456
-[Inferior 1 (process 159318) exited normally]
+[Inferior 1 (process 162263) exited normally]
 </pre>
 
 
@@ -1738,20 +1738,20 @@ End of assembler dump.
 
 <p> x0 の値がraxとrbxに重複して格納されている区間があるので、解釈の違いがあるが、これを正しく読み取れば、機械語毎に変数とレジスタが正しく対応付けられることを確認しよう。</p>
 
-<p> x0 の loclist </p>
+<p> x0 の loclistが、↓こうなっていて </p>
 <table>
   <tr> <th> 開始 </th> <th> 終了 </th> <th>レジスタ</th> </tr>
   <tr> <td> 0x401018 </td> <td> 0x40101c </td> <td> rax </td> </tr>
   <tr> <td> 0x40101c </td> <td> 0x401027 </td> <td> rbx </td> </tr>
 </table>
 
-<p> x1 の loclist </p>
+<p> x1 の loclistが、↓こうなっている </p>
 <table>
   <tr> <th> 開始 </th> <th> 終了 </th> <th>レジスタ</th> </tr>
   <tr> <td> 0x40101d </td> <td> 0x401026 </td> <td> rax </td> </tr>
 </table>
 
-
+<p> これを機械語と対応させると </p>
 
 <table>
   <tr>
@@ -1768,6 +1768,20 @@ End of assembler dump.
   <tr> <td> 0x401027 </td> <td> ret </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
 </table>
 
+<p> このようになる。 </p>
+
+<p> この情報があれば、gdb の print x0 は、次のように実現できる。 </p>
+
+<ol>
+  <li> .debug_info から x0 の情報を取得する。x0 は loclist の 0x1f にあることがわかる </li>
+  <li> loclist の 0x1f から、x0 の位置と機械語アドレスの対応を取得する </li>
+  <li> 停止した位置のプログラムカウンタと、2. の対応をとって、x0 を格納しているレジスタの位置を取得する </li>
+  <li> 対応するレジスタの値を取得して表示 </li>
+</ol>
+
+<p> readelf -wi -wo の出力から、ローカル変数の表示が実現できることを確認しよう。</p>
+
+<p> </p>
 
 
 <h4> backtrace </h4>
