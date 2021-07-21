@@ -743,8 +743,193 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
 </p>
 
 <p>
-  
+  次のプログラムを考えよう。
 </p>
+
+{{ start_file('debuggee3.c') }}
+{{ include_source() }}
+<p>
+  これは、変数がレジスタに乗るように書いたプログラムだ(レジスタを使うようにするために、最適化オプションを忘れないようにしよう)。
+  コンパイラによって状況は変わる可能性があるが、手元のGCC11では x0 は ebxに割り当てられた。
+</p>
+
+{{ gcc_S('-S -no-pie -O2 -nostartfiles -nostdlib -fno-asynchronous-unwind-tables') }}
+{{ include_file('debuggee3.s', [('	movl	%eax, %ebx', '/* x0 はebxレジスタに乗る */')]) }}
+
+<p>
+  これをgdbを経由して表示すると、
+</p>
+
+{{ gcc('-no-pie -O2 -g -nostartfiles -nostdlib -fno-asynchronous-unwind-tables') }}
+{{ gdb('b f','run', 'disassemble', ('print x0','','# x0はまだ存在しない'), 'nexti', 'nexti', 'disassemble', ('print x0','','/* ebxに入っているx0が表示される */')) }}
+{{ end_file('debuggee3.c') }}
+
+<p>
+  正しく表示される。gdb はなんらかの方法で、x0 の位置がebxレジスタに割り当てられていることを把握できている。
+</p>
+
+<p>
+  これは<em>機械語の命令毎に、変数の割り当て状況を記録していけば実現できる</em>。先程の例で、なんらかの方法で、
+</p>
+
+{{ include_file('debuggee3_with_comments.s') }}
+
+<p> このコメントに書かれたような情報が記録されているとしよう。 </p>
+
+<p>
+  ソース位置への変換で見たように、デバッグ情報には、「機械語のアドレスと、その機械語のソースの位置の対応」を記録できる。
+  それと同様に、<em>「機械語のアドレスと、その機械語における変数の割り当て状況」</em>が、記録されていれば、
+  プログラムカウンタの位置から、その時の変数割り当ての状況が正しく把握できる。
+</p>
+
+<p>
+  これまでと同じように readelf で見てみよう。今回は、-wi -wo を使う。-wi は、上で書いたとおり、.debug_infoセクションを表示する。今回は、これに加えて、-wo で .debug_loclists セクションも表示する。(-wi -wo は -wio と書いても同じ意味になる。どちらでも構わない)
+</p>
+
+{{ run_cmd(["readelf", "-wi", "-wo", "debuggee3"]) }}
+
+<p> 表示された .debug_info から、x0 と x1 の情報を見てみよう。</p>
+
+<pre>
+ &lt;2&gt;&lt;ae&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;af&gt;   DW_AT_name        : x0
+    &lt;b2&gt;   DW_AT_decl_file   : 1
+    &lt;b2&gt;   DW_AT_decl_line   : 13
+    &lt;b3&gt;   DW_AT_decl_column : 7
+    &lt;b4&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;b8&gt;   DW_AT_location    : 0x1f (location list)
+    &lt;bc&gt;   DW_AT_GNU_locviews: 0x1b
+ &lt;2&gt;&lt;c0&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;c1&gt;   DW_AT_name        : x1
+    &lt;c4&gt;   DW_AT_decl_file   : 1
+    &lt;c4&gt;   DW_AT_decl_line   : 16
+    &lt;c5&gt;   DW_AT_decl_column : 7
+    &lt;c6&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;ca&gt;   DW_AT_location    : 0x2c (location list)
+    &lt;ce&gt;   DW_AT_GNU_locviews: 0x2a
+</pre>
+
+<p> DW_AT_location が、(location list) というものに変化していることを確認しよう。グローバル変数の場合は、ここに絶対アドレスが書かれていた。
+例えば、同じファイルに含まれているグローバル変数は、以下のようになっている。</p>
+
+<pre>
+ &lt;1&gt;&lt;2e&gt;: 省略番号: 4 (DW_TAG_variable)
+    &lt;2f&gt;   DW_AT_name        : (間接文字列、オフセット: 0x0): global
+    &lt;33&gt;   DW_AT_decl_file   : 1
+    &lt;34&gt;   DW_AT_decl_line   : 10
+    &lt;35&gt;   DW_AT_decl_column : 5
+    &lt;36&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;3a&gt;   DW_AT_external    : 1
+    &lt;3a&gt;   DW_AT_location    : 9 byte block: 3 0 20 40 0 0 0 0 0 	(DW_OP_addr: 402000)
+</pre>
+
+<p> ローカル変数の場合は、DW_AT_location に、ローカル変数用の位置情報が格納されている。この、location list の内容は、.debug_loclists セクションに書かれている。</p>
+
+<pre>
+.debug_loclists セクションの内容:
+
+    Offset   Begin            End              Expression
+
+    0000000c v000000000000000 v000000000000000 location view pair
+    0000000e v000000000000000 v000000000000000 location view pair
+
+    00000010 v000000000000000 v000000000000000 views at 0000000c for:
+             000000000040103b 0000000000401040 (DW_OP_reg0 (rax))
+    00000015 v000000000000000 v000000000000000 views at 0000000e for:
+             0000000000401040 0000000000401047 (DW_OP_reg5 (rdi))
+    0000001a &lt;リストの終端&gt;
+
+    0000001b v000000000000000 v000000000000000 location view pair
+    0000001d v000000000000000 v000000000000000 location view pair
+
+    0000001f v000000000000000 v000000000000000 views at 0000001b for:
+             0000000000401018 000000000040101c (DW_OP_reg0 (rax))
+    00000024 v000000000000000 v000000000000000 views at 0000001d for:
+             000000000040101c 0000000000401027 (DW_OP_reg3 (rbx))
+    00000029 &lt;リストの終端&gt;
+
+    0000002a v000000000000000 v000000000000000 location view pair
+
+    0000002c v000000000000000 v000000000000000 views at 0000002a for:
+             000000000040101d 0000000000401026 (DW_OP_reg0 (rax))
+    00000031 &lt;リストの終端&gt;
+</pre>
+
+<p> x0 のDW_AT_locationは、</p>
+
+<pre>
+    &lt;b8&gt;   DW_AT_location    : 0x1f (location list)
+</pre>
+
+<p> このようになっていた。この、 "0x1f" が、location list 内の位置と対応している。</pre>
+
+<pre>
+    0000001f v000000000000000 v000000000000000 views at 0000001b for:   <em> # DW_AT_location の 0x1f と対応 </em>
+             0000000000401018 000000000040101c (DW_OP_reg0 (rax))
+    00000024 v000000000000000 v000000000000000 views at 0000001d for:
+             000000000040101c 0000000000401027 (DW_OP_reg3 (rbx))
+    00000029 &lt;リストの終端&gt;
+</pre>
+
+<p> これは、x0 の値が、0x401018 - 0x40101c の間は、rax に、0x40101c - 0x401027 の間は、rbx に格納されることを意味している。 </p>
+
+<p> 同じように、x1 の location list は、DW_AT_location の値が、0x2c なので、 </p>
+
+<pre>
+    0000002c v000000000000000 v000000000000000 views at 0000002a for:
+             000000000040101d 0000000000401026 (DW_OP_reg0 (rax))
+    00000031 &lt;リストの終端&gt;
+</pre>
+
+<p> これと対応している。これは、x1 の値が、0x40101d - 0x401026 の間は、rax に格納されることを意味している。 </p>
+
+<p> x0 の値がraxとrbxに重複して格納されている区間があるので、解釈の違いがあるが、これを正しく読み取れば、機械語毎に変数とレジスタが正しく対応付けられることを確認しよう。</p>
+
+<p> x0 の loclistが、↓こうなっていて </p>
+<table>
+  <tr> <th> 開始 </th> <th> 終了 </th> <th>レジスタ</th> </tr>
+  <tr> <td> 0x401018 </td> <td> 0x40101c </td> <td> rax </td> </tr>
+  <tr> <td> 0x40101c </td> <td> 0x401027 </td> <td> rbx </td> </tr>
+</table>
+
+<p> x1 の loclistが、↓こうなっている </p>
+<table>
+  <tr> <th> 開始 </th> <th> 終了 </th> <th>レジスタ</th> </tr>
+  <tr> <td> 0x40101d </td> <td> 0x401026 </td> <td> rax </td> </tr>
+</table>
+
+<p> これを機械語と対応させると </p>
+
+<table>
+  <tr>
+    <th> アドレス </th> <th> 機械語 </th> <th> x0のレジスタ </th> <th> x1のレジスタ </th>
+  </tr>
+
+  <tr> <td> 0x401010 </td> <td> push %rbx </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x401011 </td> <td> call 0x401000 </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x401016 </td> <td> mov %eax, %ebx </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x401018 </td> <td> call 0x401000 </td> <td> rax </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x40101d </td> <td> addl $0x1, 0xfdc(%rip) </td> <td> rbx </td> <td> rax </td> </tr>
+  <tr> <td> 0x401024 </td> <td> add %ebx, %eax </td> <td> rbx </td> <td> rax </td> </tr>
+  <tr> <td> 0x401026 </td> <td> pop %rbx </td> <td> rbx </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x401027 </td> <td> ret </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
+</table>
+
+<p> このようになる。 </p>
+
+<p> この情報があれば、gdb の print x0 は、次のように実現できる。 </p>
+
+<ol>
+  <li> .debug_info から x0 の情報を取得する。x0 は loclist の 0x1f にあることがわかる </li>
+  <li> loclist の 0x1f から、x0 の位置と機械語アドレスの対応を取得する </li>
+  <li> 停止した位置のプログラムカウンタと、2. の対応をとって、x0 を格納しているレジスタの位置を取得する </li>
+  <li> 対応するレジスタの値を取得して表示 </li>
+</ol>
+
+<p> readelf -wi -wo の出力から、ローカル変数の表示が実現できることを確認しよう。</p>
+
+<p> </p>
+
 
 <h4> backtrace </h4>
 
@@ -752,8 +937,23 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
 <h3> breakpoint,next,finish </h3>
 <h3> watch </h3>
 
-<p> <a href="../index.html"> 戻る </a> </p>
+<h1> デバッガの実装 </h1>
 
+<p> ほんとにやるの？ </p>
+
+<h2> DWARFの読みかた </h2>
+
+<p> さらに完全に理解したい人のために、DWARFの読みかたを解説しておこう。</p>
+
+<p> DWARFはファイルサイズ削減のために、簡単に読めるフォーマットにはなっていない。
+  純粋に動作を知りたいだけの場合は、無駄な苦痛が待っているので特に興味のない人は読み飛ばしてもらって構わない。
+</p>
+
+<p>
+  それでも、細かい動作まで理解して、デバッガとデバッグ情報が魔法ではないと確信を持ちたい人は、これを参考に自分でデバッガの実装などにチャレンジしてみてほしい。
+</p>
+
+<p> <a href="../index.html"> 戻る </a> </p>
 
 </div>
 

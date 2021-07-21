@@ -10,6 +10,8 @@ from pygments.formatters import HtmlFormatter
 
 def exe_name(path):
     return os.path.splitext(path)[0]
+def asm_name(path):
+    return os.path.splitext(path)[0]+'.s'
 
 def compile_and_run(path,opt,argv):
     command = "gcc %s -o %s %s"%(opt,exe_name(path),path)
@@ -23,8 +25,8 @@ def compile_and_run(path,opt,argv):
 
     return (command,out.decode())
 
-def compile(path,opt):
-    command = "gcc %s -o %s %s"%(opt,exe_name(path),path)
+def compile(path,opt,output):
+    command = "gcc %s -o %s %s"%(opt,output,path)
     os.system(command)
     return command
 
@@ -156,7 +158,18 @@ def update_document(path):
 
     def gcc(gcc_options="-Wall -no-pie"):
         nonlocal cur_session
-        command = compile(cur_session.path,gcc_options)
+        command = compile(cur_session.path,gcc_options,exe_name(cur_session.path))
+
+        result = ""
+        result += ("<pre>\n")
+        result += (" $ " + command + "\n")
+        result += ("</pre>\n")
+
+        return result
+
+    def gcc_S(gcc_options="-S -Wall -no-pie"):
+        nonlocal cur_session
+        command = compile(cur_session.path,gcc_options,asm_name(cur_session.path))
 
         result = ""
         result += ("<pre>\n")
@@ -236,13 +249,48 @@ def update_document(path):
 
         return result
 
+    def include_file(path, comments=[]):
+        cur_file = path
+        result = ""
+        src = open(cur_file).read()
+
+        new_src = ""
+
+        matches = [0] * len(comments)
+        for line in src.split('\n'):
+            replace = False
+            for comi in range(0,len(comments)):
+                pat,com = comments[comi]
+                if pat == line:
+                    if matches[comi] != 0:
+                        raise Exception('multiple match')
+
+                    new_src += line + '        ' + com + '\n'
+                    matches[comi] += 1
+                    replace = True
+                    break
+            if not replace:
+                new_src += line + '\n'
+
+        for comi in range(0,len(comments)):
+            if matches[comi] != 1:
+                raise Exception('unmatched pattern %s'%(comments[comi][0]))
+
+        result += highlight(new_src,
+                            lexer=get_lexer_for_filename(cur_file),
+                            formatter=formatter)
+
+        return result
+
 
     template.globals['start_file'] = start_file
     template.globals['include_source'] = include_source
+    template.globals['include_file'] = include_file
     template.globals['set_expected'] = set_expected
     template.globals['gcc_and_run'] = gcc_and_run
     template.globals['run_cmd'] = run_cmd
     template.globals['gcc'] = gcc
+    template.globals['gcc_S'] = gcc_S
     template.globals['gdb'] = gdb
     template.globals['end_file'] = end_file
 

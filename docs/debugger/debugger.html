@@ -420,7 +420,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 int_value = 123456
-[Inferior 1 (process 32159) exited normally]
+[Inferior 1 (process 159318) exited normally]
 </pre>
 
 
@@ -1329,8 +1329,446 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
 </p>
 
 <p>
-  
+  次のプログラムを考えよう。
 </p>
+
+
+<p><a href="debuggee3.c"> debuggee3.c </a><p>
+<div class="pygments"><pre><span></span><span class="cp">#include</span> <span class="cpf">&lt;syscall.h&gt;</span><span class="cp"></span>
+
+<span class="cm">/* 最適化で呼び出しが消えないようにGCC 11ではnoipaを付ける */</span>
+<span class="cp">#define NOINLINE __attribute__((noipa))</span>
+
+<span class="n">NOINLINE</span> <span class="k">static</span> <span class="kt">int</span> <span class="n">ret1</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+  <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kt">int</span> <span class="n">global</span><span class="p">;</span>
+
+<span class="n">NOINLINE</span> <span class="k">static</span> <span class="kt">int</span> <span class="n">f</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+  <span class="kt">int</span> <span class="n">x0</span> <span class="o">=</span> <span class="n">ret1</span><span class="p">();</span>
+
+  <span class="cm">/* わかりやすくするため、別の関数を呼んでeaxに入っている戻り値を強制的に別のレジスタに移動させる */</span>
+  <span class="kt">int</span> <span class="n">x1</span> <span class="o">=</span> <span class="n">ret1</span><span class="p">();</span>
+
+  <span class="cm">/* わかりやすくするため、命令を一個入れる */</span>
+  <span class="n">global</span><span class="o">++</span><span class="p">;</span>
+  <span class="k">return</span> <span class="n">x0</span> <span class="o">+</span> <span class="n">x1</span><span class="p">;</span>
+<span class="p">}</span>
+
+<span class="kt">int</span>
+<span class="n">_start</span><span class="p">()</span>
+<span class="p">{</span>
+    <span class="kt">int</span> <span class="n">ret</span> <span class="o">=</span> <span class="n">f</span><span class="p">();</span>
+    <span class="n">__asm__</span> <span class="nf">__volatile__</span><span class="p">(</span><span class="s">&quot;syscall&quot;</span><span class="o">::</span><span class="s">&quot;a&quot;</span><span class="p">(</span><span class="mi">60</span><span class="p">),</span><span class="s">&quot;D&quot;</span><span class="p">(</span><span class="n">ret</span><span class="p">));</span>
+
+<span class="p">}</span>
+</pre></div>
+
+<p>
+  これは、変数がレジスタに乗るように書いたプログラムだ(レジスタを使うようにするために、最適化オプションを忘れないようにしよう)。
+  コンパイラによって状況は変わる可能性があるが、手元のGCC11では x0 は ebxに割り当てられた。
+</p>
+
+<pre>
+ $ gcc -S -no-pie -O2 -nostartfiles -nostdlib -fno-asynchronous-unwind-tables -o debuggee3.s debuggee3.c
+</pre>
+
+<div class="pygments"><pre><span></span>	<span class="na">.file</span>	<span class="s">&quot;debuggee3.c&quot;</span>
+	<span class="na">.text</span>
+	<span class="na">.p2align</span> <span class="mi">4</span>
+	<span class="na">.type</span>	<span class="no">ret1</span><span class="p">,</span> <span class="na">@function</span>
+<span class="nl">ret1:</span>
+	<span class="nf">movl</span>	<span class="no">$1</span><span class="p">,</span> <span class="nv">%eax</span>
+	<span class="nf">ret</span>
+	<span class="na">.size</span>	<span class="no">ret1</span><span class="p">,</span> <span class="no">.-ret1</span>
+	<span class="na">.p2align</span> <span class="mi">4</span>
+	<span class="na">.type</span>	<span class="no">f</span><span class="p">,</span> <span class="na">@function</span>
+<span class="nl">f:</span>
+	<span class="nf">pushq</span>	<span class="nv">%rbx</span>
+	<span class="nf">call</span>	<span class="no">ret1</span>
+	<span class="nf">movl</span>	<span class="nv">%eax</span><span class="p">,</span> <span class="nv">%ebx</span>        <span class="cm">/* x0 はebxレジスタに乗る */</span>
+	<span class="nf">call</span>	<span class="no">ret1</span>
+	<span class="nf">addl</span>	<span class="no">$1</span><span class="p">,</span> <span class="no">global</span><span class="p">(</span><span class="nv">%rip</span><span class="p">)</span>
+	<span class="nf">addl</span>	<span class="nv">%ebx</span><span class="p">,</span> <span class="nv">%eax</span>
+	<span class="nf">popq</span>	<span class="nv">%rbx</span>
+	<span class="nf">ret</span>
+	<span class="na">.size</span>	<span class="no">f</span><span class="p">,</span> <span class="no">.-f</span>
+	<span class="na">.p2align</span> <span class="mi">4</span>
+	<span class="na">.globl</span>	<span class="no">_start</span>
+	<span class="na">.type</span>	<span class="no">_start</span><span class="p">,</span> <span class="na">@function</span>
+<span class="nl">_start:</span>
+	<span class="nf">subq</span>	<span class="no">$8</span><span class="p">,</span> <span class="nv">%rsp</span>
+	<span class="nf">call</span>	<span class="no">f</span>
+	<span class="nf">movl</span>	<span class="nv">%eax</span><span class="p">,</span> <span class="nv">%edi</span>
+	<span class="nf">movl</span>	<span class="no">$60</span><span class="p">,</span> <span class="nv">%eax</span>
+<span class="c1">#APP</span>
+<span class="c1"># 27 &quot;debuggee3.c&quot; 1</span>
+	<span class="nf">syscall</span>
+<span class="c1"># 0 &quot;&quot; 2</span>
+<span class="c1">#NO_APP</span>
+	<span class="nf">addq</span>	<span class="no">$8</span><span class="p">,</span> <span class="nv">%rsp</span>
+	<span class="nf">ret</span>
+	<span class="na">.size</span>	<span class="no">_start</span><span class="p">,</span> <span class="no">.-_start</span>
+	<span class="na">.globl</span>	<span class="no">global</span>
+	<span class="na">.bss</span>
+	<span class="na">.align</span> <span class="mi">4</span>
+	<span class="na">.type</span>	<span class="no">global</span><span class="p">,</span> <span class="na">@object</span>
+	<span class="na">.size</span>	<span class="no">global</span><span class="p">,</span> <span class="mi">4</span>
+<span class="nl">global:</span>
+	<span class="na">.zero</span>	<span class="mi">4</span>
+	<span class="na">.ident</span>	<span class="s">&quot;GCC: (GNU) 11.1.0&quot;</span>
+	<span class="na">.section</span>	<span class="no">.note.GNU-stack</span><span class="p">,</span><span class="s">&quot;&quot;</span><span class="p">,</span><span class="na">@progbits</span>
+</pre></div>
+
+
+<p>
+  これをgdbを経由して表示すると、
+</p>
+
+<pre>
+ $ gcc -no-pie -O2 -g -nostartfiles -nostdlib -fno-asynchronous-unwind-tables -o debuggee3 debuggee3.c
+</pre>
+
+<pre>
+ $ gdb --args ./debuggee3
+Reading symbols from ./debuggee3...
+
+(gdb) <span class="gdb-command">b f
+</span>Breakpoint 1 at 0x401010: file debuggee3.c, line 13.
+(gdb) <span class="gdb-command">run
+</span>Starting program: /home/tanakmura/src/pllp/docs/debugger/debuggee3 
+
+Breakpoint 1, f () at debuggee3.c:13
+13	  int x0 = ret1();
+(gdb) <span class="gdb-command">disassemble
+</span>Dump of assembler code for function f:
+=&gt; 0x0000000000401010 &lt;+0&gt;:	push   %rbx
+   0x0000000000401011 &lt;+1&gt;:	call   0x401000 &lt;ret1&gt;
+   0x0000000000401016 &lt;+6&gt;:	mov    %eax,%ebx
+   0x0000000000401018 &lt;+8&gt;:	call   0x401000 &lt;ret1&gt;
+   0x000000000040101d &lt;+13&gt;:	addl   $0x1,0xfdc(%rip)        # 0x402000 &lt;global&gt;
+   0x0000000000401024 &lt;+20&gt;:	add    %ebx,%eax
+   0x0000000000401026 &lt;+22&gt;:	pop    %rbx
+   0x0000000000401027 &lt;+23&gt;:	ret    
+End of assembler dump.
+(gdb) <span class="gdb-command">print x0
+</span>$1 = &lt;optimized out&gt;<span class="gdb-command-comment"><span class="gdb-command-comment"> # x0はまだ存在しない </span></span>
+(gdb) <span class="gdb-command">nexti
+</span>0x0000000000401011	13	  int x0 = ret1();
+(gdb) <span class="gdb-command">nexti
+</span>0x0000000000401016	13	  int x0 = ret1();
+(gdb) <span class="gdb-command">disassemble
+</span>Dump of assembler code for function f:
+   0x0000000000401010 &lt;+0&gt;:	push   %rbx
+   0x0000000000401011 &lt;+1&gt;:	call   0x401000 &lt;ret1&gt;
+=&gt; 0x0000000000401016 &lt;+6&gt;:	mov    %eax,%ebx
+   0x0000000000401018 &lt;+8&gt;:	call   0x401000 &lt;ret1&gt;
+   0x000000000040101d &lt;+13&gt;:	addl   $0x1,0xfdc(%rip)        # 0x402000 &lt;global&gt;
+   0x0000000000401024 &lt;+20&gt;:	add    %ebx,%eax
+   0x0000000000401026 &lt;+22&gt;:	pop    %rbx
+   0x0000000000401027 &lt;+23&gt;:	ret    
+End of assembler dump.
+(gdb) <span class="gdb-command">print x0
+</span>$2 = &lt;optimized out&gt;<span class="gdb-command-comment"><span class="gdb-command-comment"> /* ebxに入っているx0が表示される */ </span></span>
+</pre>
+
+
+
+<p>
+  正しく表示される。gdb はなんらかの方法で、x0 の位置がebxレジスタに割り当てられていることを把握できている。
+</p>
+
+<p>
+  これは<em>機械語の命令毎に、変数の割り当て状況を記録していけば実現できる</em>。先程の例で、なんらかの方法で、
+</p>
+
+<div class="pygments"><pre><span></span><span class="nl">f:</span>
+	<span class="nf">pushq</span>	<span class="nv">%rbx</span>			<span class="cm">/* まだローカル変数はない */</span>
+	<span class="nf">call</span>	<span class="no">ret1</span> 			<span class="cm">/* この命令実行後に、戻り値がeaxに入っている */</span>
+	<span class="nf">movl</span>	<span class="nv">%eax</span><span class="p">,</span> <span class="nv">%ebx</span>		<span class="cm">/* この命令実行後にx0 はebxレジスタに乗る */</span>
+	<span class="nf">call</span>	<span class="no">ret1</span>			<span class="cm">/* この命令実行後に、戻り値がeaxに入っている、これがそのままx1になる。x0はebxレジスタにある */</span>	
+	<span class="no">addl</span>	<span class="no">$1</span><span class="p">,</span> <span class="no">global</span><span class="p">(</span><span class="nv">%rip</span><span class="p">)</span>	<span class="cm">/* x0はebxレジスタにある。x1はeaxレジスタにある */</span>
+	<span class="nf">addl</span>	<span class="nv">%ebx</span><span class="p">,</span> <span class="nv">%eax</span>		<span class="cm">/* 戻り値がeaxに入る、x1はeaxレジスタが書きかえられるので消滅する。x0はebxレジスタにある */</span>
+	<span class="nf">popq</span>	<span class="nv">%rbx</span>			<span class="cm">/* ebxを復元、x0はebxレジスタが書きかえられるので消滅する */</span>
+	<span class="nf">ret</span>				<span class="cm">/* ローカル変数はない */</span>
+</pre></div>
+
+
+<p> このコメントに書かれたような情報が記録されているとしよう。 </p>
+
+<p>
+  ソース位置への変換で見たように、デバッグ情報には、「機械語のアドレスと、その機械語のソースの位置の対応」を記録できる。
+  それと同様に、<em>「機械語のアドレスと、その機械語における変数の割り当て状況」</em>が、記録されていれば、
+  プログラムカウンタの位置から、その時の変数割り当ての状況が正しく把握できる。
+</p>
+
+<p>
+  これまでと同じように readelf で見てみよう。今回は、-wi -wo を使う。-wi は、上で書いたとおり、.debug_infoセクションを表示する。今回は、これに加えて、-wo で .debug_loclists セクションも表示する。(-wi -wo は -wio と書いても同じ意味になる。どちらでも構わない)
+</p>
+
+<pre>
+ $ readelf -wi -wo debuggee3 
+.debug_info セクションの内容:
+
+  コンパイル単位 @ オフセット 0x0:
+   長さ:        0x108 (32-bit)
+   バージョン:    5
+   Unit Type:     DW_UT_compile (1)
+   省略オフセット: 0x0
+   ポインタサイズ:8
+ &lt;0&gt;&lt;c&gt;: 省略番号: 3 (DW_TAG_compile_unit)
+    &lt;d&gt;   DW_AT_producer    : (間接文字列、オフセット: 0xc): GNU C17 11.1.0 -mtune=generic -march=x86-64 -g -O2 -fno-asynchronous-unwind-tables
+    &lt;11&gt;   DW_AT_language    : 29	(C11)
+    &lt;12&gt;   DW_AT_name        : (間接行文字列、オフセット: 0x27): debuggee3.c
+    &lt;16&gt;   DW_AT_comp_dir    : (間接行文字列、オフセット: 0x0): /home/tanakmura/src/pllp/docs/debugger
+    &lt;1a&gt;   DW_AT_low_pc      : 0x401000
+    &lt;22&gt;   DW_AT_high_pc     : 0x47
+    &lt;2a&gt;   DW_AT_stmt_list   : 0x0
+ &lt;1&gt;&lt;2e&gt;: 省略番号: 4 (DW_TAG_variable)
+    &lt;2f&gt;   DW_AT_name        : (間接文字列、オフセット: 0x0): global
+    &lt;33&gt;   DW_AT_decl_file   : 1
+    &lt;34&gt;   DW_AT_decl_line   : 10
+    &lt;35&gt;   DW_AT_decl_column : 5
+    &lt;36&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;3a&gt;   DW_AT_external    : 1
+    &lt;3a&gt;   DW_AT_location    : 9 byte block: 3 0 20 40 0 0 0 0 0 	(DW_OP_addr: 402000)
+ &lt;1&gt;&lt;44&gt;: 省略番号: 5 (DW_TAG_base_type)
+    &lt;45&gt;   DW_AT_byte_size   : 4
+    &lt;46&gt;   DW_AT_encoding    : 5	(signed)
+    &lt;47&gt;   DW_AT_name        : int
+ &lt;1&gt;&lt;4b&gt;: 省略番号: 6 (DW_TAG_subprogram)
+    &lt;4c&gt;   DW_AT_external    : 1
+    &lt;4c&gt;   DW_AT_name        : (間接文字列、オフセット: 0x5f): _start
+    &lt;50&gt;   DW_AT_decl_file   : 1
+    &lt;51&gt;   DW_AT_decl_line   : 24
+    &lt;52&gt;   DW_AT_decl_column : 1
+    &lt;53&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;57&gt;   DW_AT_low_pc      : 0x401030
+    &lt;5f&gt;   DW_AT_high_pc     : 0x17
+    &lt;67&gt;   DW_AT_frame_base  : 1 byte block: 9c 	(DW_OP_call_frame_cfa)
+    &lt;69&gt;   DW_AT_call_all_calls: 1
+    &lt;69&gt;   DW_AT_sibling     : &lt;0x8e&gt;
+ &lt;2&gt;&lt;6d&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;6e&gt;   DW_AT_name        : ret
+    &lt;72&gt;   DW_AT_decl_file   : 1
+    &lt;72&gt;   DW_AT_decl_line   : 26
+    &lt;73&gt;   DW_AT_decl_column : 9
+    &lt;74&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;78&gt;   DW_AT_location    : 0x10 (location list)
+    &lt;7c&gt;   DW_AT_GNU_locviews: 0xc
+ &lt;2&gt;&lt;80&gt;: 省略番号: 2 (DW_TAG_call_site)
+    &lt;81&gt;   DW_AT_call_return_pc: 0x401039
+    &lt;89&gt;   DW_AT_call_origin : &lt;0x8e&gt;
+ &lt;2&gt;&lt;8d&gt;: Abbrev Number: 0
+ &lt;1&gt;&lt;8e&gt;: 省略番号: 7 (DW_TAG_subprogram)
+    &lt;8f&gt;   DW_AT_name        : f
+    &lt;91&gt;   DW_AT_decl_file   : 1
+    &lt;92&gt;   DW_AT_decl_line   : 12
+    &lt;93&gt;   DW_AT_decl_column : 21
+    &lt;94&gt;   DW_AT_prototyped  : 1
+    &lt;94&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;98&gt;   DW_AT_low_pc      : 0x401010
+    &lt;a0&gt;   DW_AT_high_pc     : 0x18
+    &lt;a8&gt;   DW_AT_frame_base  : 1 byte block: 9c 	(DW_OP_call_frame_cfa)
+    &lt;aa&gt;   DW_AT_call_all_calls: 1
+    &lt;aa&gt;   DW_AT_sibling     : &lt;0xed&gt;
+ &lt;2&gt;&lt;ae&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;af&gt;   DW_AT_name        : x0
+    &lt;b2&gt;   DW_AT_decl_file   : 1
+    &lt;b2&gt;   DW_AT_decl_line   : 13
+    &lt;b3&gt;   DW_AT_decl_column : 7
+    &lt;b4&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;b8&gt;   DW_AT_location    : 0x1f (location list)
+    &lt;bc&gt;   DW_AT_GNU_locviews: 0x1b
+ &lt;2&gt;&lt;c0&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;c1&gt;   DW_AT_name        : x1
+    &lt;c4&gt;   DW_AT_decl_file   : 1
+    &lt;c4&gt;   DW_AT_decl_line   : 16
+    &lt;c5&gt;   DW_AT_decl_column : 7
+    &lt;c6&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;ca&gt;   DW_AT_location    : 0x2c (location list)
+    &lt;ce&gt;   DW_AT_GNU_locviews: 0x2a
+ &lt;2&gt;&lt;d2&gt;: 省略番号: 2 (DW_TAG_call_site)
+    &lt;d3&gt;   DW_AT_call_return_pc: 0x401016
+    &lt;db&gt;   DW_AT_call_origin : &lt;0xed&gt;
+ &lt;2&gt;&lt;df&gt;: 省略番号: 2 (DW_TAG_call_site)
+    &lt;e0&gt;   DW_AT_call_return_pc: 0x40101d
+    &lt;e8&gt;   DW_AT_call_origin : &lt;0xed&gt;
+ &lt;2&gt;&lt;ec&gt;: Abbrev Number: 0
+ &lt;1&gt;&lt;ed&gt;: 省略番号: 8 (DW_TAG_subprogram)
+    &lt;ee&gt;   DW_AT_name        : (間接文字列、オフセット: 0x7): ret1
+    &lt;f2&gt;   DW_AT_decl_file   : 1
+    &lt;f3&gt;   DW_AT_decl_line   : 6
+    &lt;f4&gt;   DW_AT_decl_column : 21
+    &lt;f5&gt;   DW_AT_prototyped  : 1
+    &lt;f5&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;f9&gt;   DW_AT_low_pc      : 0x401000
+    &lt;101&gt;   DW_AT_high_pc     : 0x6
+    &lt;109&gt;   DW_AT_frame_base  : 1 byte block: 9c 	(DW_OP_call_frame_cfa)
+    &lt;10b&gt;   DW_AT_call_all_calls: 1
+ &lt;1&gt;&lt;10b&gt;: Abbrev Number: 0
+
+.debug_loclists セクションの内容:
+
+    Offset   Begin            End              Expression
+
+    0000000c v000000000000000 v000000000000000 location view pair
+    0000000e v000000000000000 v000000000000000 location view pair
+
+    00000010 v000000000000000 v000000000000000 views at 0000000c for:
+             000000000040103b 0000000000401040 (DW_OP_reg0 (rax))
+    00000015 v000000000000000 v000000000000000 views at 0000000e for:
+             0000000000401040 0000000000401047 (DW_OP_reg5 (rdi))
+    0000001a &lt;リストの終端&gt;
+
+    0000001b v000000000000000 v000000000000000 location view pair
+    0000001d v000000000000000 v000000000000000 location view pair
+
+    0000001f v000000000000000 v000000000000000 views at 0000001b for:
+             0000000000401018 000000000040101c (DW_OP_reg0 (rax))
+    00000024 v000000000000000 v000000000000000 views at 0000001d for:
+             000000000040101c 0000000000401027 (DW_OP_reg3 (rbx))
+    00000029 &lt;リストの終端&gt;
+
+    0000002a v000000000000000 v000000000000000 location view pair
+
+    0000002c v000000000000000 v000000000000000 views at 0000002a for:
+             000000000040101d 0000000000401026 (DW_OP_reg0 (rax))
+    00000031 &lt;リストの終端&gt;
+
+
+</pre>
+
+
+<p> 表示された .debug_info から、x0 と x1 の情報を見てみよう。</p>
+
+<pre>
+ &lt;2&gt;&lt;ae&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;af&gt;   DW_AT_name        : x0
+    &lt;b2&gt;   DW_AT_decl_file   : 1
+    &lt;b2&gt;   DW_AT_decl_line   : 13
+    &lt;b3&gt;   DW_AT_decl_column : 7
+    &lt;b4&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;b8&gt;   DW_AT_location    : 0x1f (location list)
+    &lt;bc&gt;   DW_AT_GNU_locviews: 0x1b
+ &lt;2&gt;&lt;c0&gt;: 省略番号: 1 (DW_TAG_variable)
+    &lt;c1&gt;   DW_AT_name        : x1
+    &lt;c4&gt;   DW_AT_decl_file   : 1
+    &lt;c4&gt;   DW_AT_decl_line   : 16
+    &lt;c5&gt;   DW_AT_decl_column : 7
+    &lt;c6&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;ca&gt;   DW_AT_location    : 0x2c (location list)
+    &lt;ce&gt;   DW_AT_GNU_locviews: 0x2a
+</pre>
+
+<p> DW_AT_location が、(location list) というものに変化していることを確認しよう。グローバル変数の場合は、ここに絶対アドレスが書かれていた。
+例えば、同じファイルに含まれているグローバル変数は、以下のようになっている。</p>
+
+<pre>
+ &lt;1&gt;&lt;2e&gt;: 省略番号: 4 (DW_TAG_variable)
+    &lt;2f&gt;   DW_AT_name        : (間接文字列、オフセット: 0x0): global
+    &lt;33&gt;   DW_AT_decl_file   : 1
+    &lt;34&gt;   DW_AT_decl_line   : 10
+    &lt;35&gt;   DW_AT_decl_column : 5
+    &lt;36&gt;   DW_AT_type        : &lt;0x44&gt;
+    &lt;3a&gt;   DW_AT_external    : 1
+    &lt;3a&gt;   DW_AT_location    : 9 byte block: 3 0 20 40 0 0 0 0 0 	(DW_OP_addr: 402000)
+</pre>
+
+<p> ローカル変数の場合は、DW_AT_location に、ローカル変数用の位置情報が格納されている。この、location list の内容は、.debug_loclists セクションに書かれている。</p>
+
+<pre>
+.debug_loclists セクションの内容:
+
+    Offset   Begin            End              Expression
+
+    0000000c v000000000000000 v000000000000000 location view pair
+    0000000e v000000000000000 v000000000000000 location view pair
+
+    00000010 v000000000000000 v000000000000000 views at 0000000c for:
+             000000000040103b 0000000000401040 (DW_OP_reg0 (rax))
+    00000015 v000000000000000 v000000000000000 views at 0000000e for:
+             0000000000401040 0000000000401047 (DW_OP_reg5 (rdi))
+    0000001a &lt;リストの終端&gt;
+
+    0000001b v000000000000000 v000000000000000 location view pair
+    0000001d v000000000000000 v000000000000000 location view pair
+
+    0000001f v000000000000000 v000000000000000 views at 0000001b for:
+             0000000000401018 000000000040101c (DW_OP_reg0 (rax))
+    00000024 v000000000000000 v000000000000000 views at 0000001d for:
+             000000000040101c 0000000000401027 (DW_OP_reg3 (rbx))
+    00000029 &lt;リストの終端&gt;
+
+    0000002a v000000000000000 v000000000000000 location view pair
+
+    0000002c v000000000000000 v000000000000000 views at 0000002a for:
+             000000000040101d 0000000000401026 (DW_OP_reg0 (rax))
+    00000031 &lt;リストの終端&gt;
+</pre>
+
+<p> x0 のDW_AT_locationは、</p>
+
+<pre>
+    &lt;b8&gt;   DW_AT_location    : 0x1f (location list)
+</pre>
+
+<p> このようになっていた。この、 "0x1f" が、location list 内の位置と対応している。</pre>
+
+<pre>
+    0000001f v000000000000000 v000000000000000 views at 0000001b for:   <em> # DW_AT_location の 0x1f と対応 </em>
+             0000000000401018 000000000040101c (DW_OP_reg0 (rax))
+    00000024 v000000000000000 v000000000000000 views at 0000001d for:
+             000000000040101c 0000000000401027 (DW_OP_reg3 (rbx))
+    00000029 &lt;リストの終端&gt;
+</pre>
+
+<p> これは、x0 の値が、0x401018 - 0x40101c の間は、rax に、0x40101c - 0x401027 の間は、rbx に格納されることを意味している。 </p>
+
+<p> 同じように、x1 の location list は、DW_AT_location の値が、0x2c なので、 </p>
+
+<pre>
+    0000002c v000000000000000 v000000000000000 views at 0000002a for:
+             000000000040101d 0000000000401026 (DW_OP_reg0 (rax))
+    00000031 &lt;リストの終端&gt;
+</pre>
+
+<p> これと対応している。これは、x1 の値が、0x40101d - 0x401026 の間は、rax に格納されることを意味している。 </p>
+
+<p> x0 の値がraxとrbxに重複して格納されている区間があるので、解釈の違いがあるが、これを正しく読み取れば、機械語毎に変数とレジスタが正しく対応付けられることを確認しよう。</p>
+
+<p> x0 の loclist </p>
+<table>
+  <tr> <th> 開始 </th> <th> 終了 </th> <th>レジスタ</th> </tr>
+  <tr> <td> 0x401018 </td> <td> 0x40101c </td> <td> rax </td> </tr>
+  <tr> <td> 0x40101c </td> <td> 0x401027 </td> <td> rbx </td> </tr>
+</table>
+
+<p> x1 の loclist </p>
+<table>
+  <tr> <th> 開始 </th> <th> 終了 </th> <th>レジスタ</th> </tr>
+  <tr> <td> 0x40101d </td> <td> 0x401026 </td> <td> rax </td> </tr>
+</table>
+
+
+
+<table>
+  <tr>
+    <th> アドレス </th> <th> 機械語 </th> <th> x0のレジスタ </th> <th> x1のレジスタ </th>
+  </tr>
+
+  <tr> <td> 0x401010 </td> <td> push %rbx </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x401011 </td> <td> call 0x401000 </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x401016 </td> <td> mov %eax, %ebx </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x401018 </td> <td> call 0x401000 </td> <td> rax </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x40101d </td> <td> addl $0x1, 0xfdc(%rip) </td> <td> rbx </td> <td> rax </td> </tr>
+  <tr> <td> 0x401024 </td> <td> add %ebx, %eax </td> <td> rbx </td> <td> rax </td> </tr>
+  <tr> <td> 0x401026 </td> <td> pop %rbx </td> <td> rbx </td> <td> 対応なし </td> </tr>
+  <tr> <td> 0x401027 </td> <td> ret </td> <td> 対応なし </td> <td> 対応なし </td> </tr>
+</table>
+
+
 
 <h4> backtrace </h4>
 
@@ -1338,8 +1776,23 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
 <h3> breakpoint,next,finish </h3>
 <h3> watch </h3>
 
-<p> <a href="../index.html"> 戻る </a> </p>
+<h1> デバッガの実装 </h1>
 
+<p> ほんとにやるの？ </p>
+
+<h2> DWARFの読みかた </h2>
+
+<p> さらに完全に理解したい人のために、DWARFの読みかたを解説しておこう。</p>
+
+<p> DWARFはファイルサイズ削減のために、簡単に読めるフォーマットにはなっていない。
+  純粋に動作を知りたいだけの場合は、無駄な苦痛が待っているので特に興味のない人は読み飛ばしてもらって構わない。
+</p>
+
+<p>
+  それでも、細かい動作まで理解して、デバッガとデバッグ情報が魔法ではないと確信を持ちたい人は、これを参考に自分でデバッガの実装などにチャレンジしてみてほしい。
+</p>
+
+<p> <a href="../index.html"> 戻る </a> </p>
 
 </div>
 
