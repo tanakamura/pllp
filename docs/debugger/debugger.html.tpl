@@ -543,6 +543,7 @@ const struct VarDebugInfo debuginfo_for_debugee1[] = {
 <p> デバッグ情報には、シンボルとアドレスの対応が含まれているので、これはデバッグ情報の読みかたを変えるだけで実現できる。 </p>
 
 {{ start_file('dummy-debuginfo2.c') }}
+{{ include_source() }}
 {{ gcc('') }}
 {{ run_cmd(["./dummy-debuginfo2","0x404000"], expected="sym: int_value, type:int, addr=0x0000000000404000
 ") }}
@@ -775,7 +776,7 @@ _start () at debuggee2.c:5                      <em> # debugee2.c の 5行目 �
 </p>
 
 {{ gcc('-no-pie -O2 -g -nostartfiles -nostdlib -fno-asynchronous-unwind-tables') }}
-{{ gdb('b f','run', 'disassemble', ('print x0','','# x0はまだ存在しない'), 'nexti', 'nexti', 'disassemble', ('print x0','','/* ebxに入っているx0が表示される */')) }}
+{{ gdb('b f','run', 'disassemble', ('print x0','','# x0はまだ存在しない'), 'nexti', 'nexti', 'nexti', 'disassemble', ('print x0','','/* ebxに入っているx0が表示される */')) }}
 {{ end_file('debuggee3.c') }}
 
 <p>

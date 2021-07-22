@@ -420,7 +420,7 @@ Temporary breakpoint 1, main () at print-a.c:6
 </span>(gdb) <span class="gdb-command">continue
 </span>Continuing.
 int_value = 123456
-[Inferior 1 (process 172556) exited normally]
+[Inferior 1 (process 174188) exited normally]
 </pre>
 
 
@@ -1021,6 +1021,99 @@ Breakpoint 1, _start () at debuggee1.c:5
 <p> デバッグ情報には、シンボルとアドレスの対応が含まれているので、これはデバッグ情報の読みかたを変えるだけで実現できる。 </p>
 
 
+<p><a href="dummy-debuginfo2.c"> dummy-debuginfo2.c </a><p>
+<div class="pygments"><pre><span></span><span class="cp">#include</span> <span class="cpf">&lt;stdio.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;string.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;stdlib.h&gt;</span><span class="cp"></span>
+<span class="cp">#include</span> <span class="cpf">&lt;ctype.h&gt;</span><span class="cp"></span>
+
+<span class="k">enum</span> <span class="n">var_type</span> <span class="p">{</span>
+    <span class="n">TYPE_INT</span><span class="p">,</span>
+    <span class="n">TYPE_CHAR_ARRAY</span>
+<span class="p">};</span>
+
+<span class="k">static</span> <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="nf">type_to_str</span><span class="p">(</span><span class="k">enum</span> <span class="n">var_type</span> <span class="n">t</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">switch</span> <span class="p">(</span><span class="n">t</span><span class="p">)</span> <span class="p">{</span>
+    <span class="k">case</span> <span class="nl">TYPE_INT</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&quot;int&quot;</span><span class="p">;</span>
+    <span class="k">case</span> <span class="nl">TYPE_CHAR_ARRAY</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s">&quot;char[]&quot;</span><span class="p">;</span>
+    <span class="k">default</span><span class="o">:</span>
+        <span class="k">return</span> <span class="s">&quot;unknown type&quot;</span><span class="p">;</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="p">{</span>
+    <span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">symbol</span><span class="p">;</span>
+    <span class="k">enum</span> <span class="n">var_type</span> <span class="n">type</span><span class="p">;</span>
+    <span class="kt">long</span> <span class="n">var_addr</span><span class="p">;</span>
+<span class="p">};</span>
+
+<span class="cm">/* デバッグ情報のようなもの */</span>
+<span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="n">dummy_debuginfo</span><span class="p">[]</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="p">{</span><span class="s">&quot;int_value&quot;</span><span class="p">,</span> <span class="n">TYPE_INT</span><span class="p">,</span> <span class="mh">0x404000</span><span class="p">},</span>
+    <span class="p">{</span><span class="s">&quot;str_value&quot;</span><span class="p">,</span> <span class="n">TYPE_CHAR_ARRAY</span><span class="p">,</span> <span class="mh">0x404008</span><span class="p">},</span>
+    <span class="p">{</span><span class="nb">NULL</span><span class="p">}</span>                              <span class="cm">/* 終端 */</span>
+<span class="p">};</span>
+
+<span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span>
+<span class="n">extract_var_debug_info_from_symbol</span><span class="p">(</span><span class="k">const</span> <span class="kt">char</span> <span class="o">*</span><span class="n">symbol</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;cannot find debug info for &#39;%s&#39;.</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">symbol</span><span class="p">);</span>
+            <span class="n">abort</span><span class="p">();</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">strcmp</span><span class="p">(</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span><span class="p">,</span> <span class="n">symbol</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="o">&amp;</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="k">static</span> <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span>
+<span class="n">extract_var_debug_info_from_addr</span><span class="p">(</span><span class="kt">long</span> <span class="n">addr</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">for</span> <span class="p">(</span><span class="kt">int</span> <span class="n">i</span><span class="o">=</span><span class="mi">0</span><span class="p">;</span> <span class="p">;</span> <span class="n">i</span><span class="o">++</span><span class="p">)</span> <span class="p">{</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">symbol</span> <span class="o">==</span> <span class="nb">NULL</span><span class="p">)</span> <span class="p">{</span>
+            <span class="n">fprintf</span><span class="p">(</span><span class="n">stderr</span><span class="p">,</span> <span class="s">&quot;cannot find debug info for &#39;0x%016lx&#39;.</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">addr</span><span class="p">);</span>
+            <span class="n">abort</span><span class="p">();</span>
+        <span class="p">}</span>
+
+        <span class="k">if</span> <span class="p">(</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">].</span><span class="n">var_addr</span> <span class="o">==</span> <span class="n">addr</span><span class="p">)</span> <span class="p">{</span>
+            <span class="k">return</span> <span class="o">&amp;</span><span class="n">dummy_debuginfo</span><span class="p">[</span><span class="n">i</span><span class="p">];</span>
+        <span class="p">}</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+
+<span class="kt">int</span>
+<span class="n">main</span><span class="p">(</span><span class="kt">int</span> <span class="n">argc</span><span class="p">,</span> <span class="kt">char</span> <span class="o">**</span><span class="n">argv</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">argc</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">printf</span><span class="p">(</span><span class="s">&quot;usage : %s &lt;symbol&gt;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span> <span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]);</span>
+        <span class="k">return</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="p">}</span>
+
+    <span class="k">const</span> <span class="k">struct</span> <span class="nc">VarDebugInfo</span> <span class="o">*</span><span class="n">info</span><span class="p">;</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="n">isdigit</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">][</span><span class="mi">0</span><span class="p">]))</span> <span class="p">{</span>
+        <span class="cm">/* 数字を引数に渡された場合はそれをアドレスとする */</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">extract_var_debug_info_from_addr</span><span class="p">(</span><span class="n">strtol</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="nb">NULL</span><span class="p">,</span> <span class="mi">0</span><span class="p">));</span>
+    <span class="p">}</span> <span class="k">else</span> <span class="p">{</span>
+        <span class="cm">/* そうでない場合はシンボル文字列とする */</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">extract_var_debug_info_from_symbol</span><span class="p">(</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]);</span>
+    <span class="p">}</span>
+
+    <span class="n">printf</span><span class="p">(</span><span class="s">&quot;sym: %s, type:%s, addr=0x%016lx</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span>
+           <span class="n">info</span><span class="o">-&gt;</span><span class="n">symbol</span><span class="p">,</span>
+           <span class="n">type_to_str</span><span class="p">(</span><span class="n">info</span><span class="o">-&gt;</span><span class="n">type</span><span class="p">),</span>
+           <span class="n">info</span><span class="o">-&gt;</span><span class="n">var_addr</span><span class="p">);</span>
+
+    <span class="k">return</span> <span class="mi">0</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+
 <pre>
  $ gcc  -o dummy-debuginfo2 dummy-debuginfo2.c
 </pre>
@@ -1472,19 +1565,21 @@ End of assembler dump.
 </span>0x0000000000401011	13	  int x0 = ret1();
 (gdb) <span class="gdb-command">nexti
 </span>0x0000000000401016	13	  int x0 = ret1();
+(gdb) <span class="gdb-command">nexti
+</span>16	  int x1 = ret1();
 (gdb) <span class="gdb-command">disassemble
 </span>Dump of assembler code for function f:
    0x0000000000401010 &lt;+0&gt;:	push   %rbx
    0x0000000000401011 &lt;+1&gt;:	call   0x401000 &lt;ret1&gt;
-=&gt; 0x0000000000401016 &lt;+6&gt;:	mov    %eax,%ebx
-   0x0000000000401018 &lt;+8&gt;:	call   0x401000 &lt;ret1&gt;
+   0x0000000000401016 &lt;+6&gt;:	mov    %eax,%ebx
+=&gt; 0x0000000000401018 &lt;+8&gt;:	call   0x401000 &lt;ret1&gt;
    0x000000000040101d &lt;+13&gt;:	addl   $0x1,0xfdc(%rip)        # 0x402000 &lt;global&gt;
    0x0000000000401024 &lt;+20&gt;:	add    %ebx,%eax
    0x0000000000401026 &lt;+22&gt;:	pop    %rbx
    0x0000000000401027 &lt;+23&gt;:	ret    
 End of assembler dump.
 (gdb) <span class="gdb-command">print x0
-</span>$2 = &lt;optimized out&gt;<span class="gdb-command-comment"><span class="gdb-command-comment"> /* ebxに入っているx0が表示される */ </span></span>
+</span>$2 = 1<span class="gdb-command-comment"><span class="gdb-command-comment"> /* ebxに入っているx0が表示される */ </span></span>
 </pre>
 
 
