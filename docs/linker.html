@@ -1802,7 +1802,7 @@ Symbol table '.symtab' contains 9 entries:
      4: 0000000000000000     0 SECTION LOCAL  DEFAULT    4 
      5: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    4 label0
      6: 0000000000000000     0 SECTION LOCAL  DEFAULT    6 
-     7: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    6 label1
+     7: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT    5 label1
      8: 0000000000000004     0 NOTYPE  LOCAL  DEFAULT    4 label2
 </pre>
 
@@ -1838,11 +1838,11 @@ Symbol table '.symtab' contains 9 entries:
 </p>
 
 <ul>
-  <li> lable0 は、4番目のセクションに所属していて、アドレス(Value)は0 </li>
-  <li> lable1 は、5番目のセクションに所属していて、アドレス(Value)は0 </li>
-  <li> lable0 は、4番目のセクションに所属していて、アドレス(Value)は4 </li>
-  <li> 4番目のセクションの名前は "section1" </li>
-  <li> 5番目のセクションの名前は "section2" </li>
+  <li> label0 は、4番目のセクションに所属していて、アドレス(Value)は0 </li>
+  <li> label1 は、5番目のセクションに所属していて、アドレス(Value)は0 </li>
+  <li> label2 は、4番目のセクションに所属していて、アドレス(Value)は4 </li>
+  <li> 4番目のセクションの名前は "section0" </li>
+  <li> 5番目のセクションの名前は "section1" </li>
 </ul>
 
 <p>
@@ -1854,22 +1854,22 @@ Symbol table '.symtab' contains 9 entries:
 </p>
 
 <pre>
-	.section	section1 <em># 以降のオブジェクトとラベルをsection1に配置</em>
-label0:                          <em># label0 を section1 の先頭(アドレス0)に定義</em>
-	.byte	0x41             <em># 1byteのデータをsection1 に可能 </em>
+	.section	section0 <em># 以降のオブジェクトとラベルをsection0に配置</em>
+label0:                          <em># label0 を section0 の先頭(アドレス0)に定義</em>
+	.byte	0x41             <em># 1byteのデータをsection0 に可能 </em>
 	.byte	0x42
 	.byte	0x43
 	.byte	0x44
 	
-	.section	section2 <em># 以降のオブジェクトとラベルをsection2に配置</em>
-label1:                          <em># label1 を section2 の先頭(アドレス0)に定義</em>
+	.section	section1 <em># 以降のオブジェクトとラベルをsection1に配置</em>
+label1:                          <em># label1 を section1 の先頭(アドレス0)に定義</em>
 	.byte	0x45
 	.byte	0x46
 	.byte	0x47
 	.byte	0x48
 
-	.section	section1 <em># 以降のオブジェクトとラベルをsection1に配置</em>
-label2:	                         <em># label2 を section1 のアドレス4 に配置 </em>
+	.section	section0 <em># 以降のオブジェクトとラベルをsection0に配置</em>
+label2:	                         <em># label2 を section0 のアドレス4 に配置 </em>
 	.byte	0x49
 	.byte	0x4a
 	.byte	0x4b
